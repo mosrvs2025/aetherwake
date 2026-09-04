@@ -17,10 +17,38 @@ export function TitleScreen() {
   const load = useGame((s) => s.load);
   const [saved, setSaved] = useState(false);
   useEffect(() => setSaved(hasSave()), []);
+  useEffect(() => {
+    if (mode !== "title") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Enter" || e.code === "Space") {
+        e.preventDefault();
+        unlockAudio();
+        sting("ui");
+        start();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, start]);
   if (mode !== "title") return null;
+
+  const enter = () => {
+    unlockAudio();
+    sting("ui");
+    start();
+  };
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-end pb-16 sm:justify-center sm:pb-0">
-      <div className="pointer-events-auto mx-4 max-w-xl rounded-3xl border border-amber-200/20 bg-black/50 px-8 py-10 text-center shadow-[0_0_80px_rgba(88,28,135,0.35)] backdrop-blur-md">
+    <div
+      className="absolute inset-0 z-20 flex cursor-pointer flex-col items-center justify-center bg-[#07060c]/35 px-4"
+      onClick={enter}
+      onPointerDown={enter}
+    >
+      <div
+        className="mx-4 max-w-xl rounded-3xl border border-amber-200/20 bg-black/60 px-8 py-10 text-center shadow-[0_0_80px_rgba(88,28,135,0.35)] backdrop-blur-md"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <p className="font-[family-name:var(--font-sans)] text-xs tracking-[0.4em] text-amber-200/70 uppercase">
           A vertical slice of the Shattered Vale
         </p>
@@ -28,25 +56,19 @@ export function TitleScreen() {
           Aetherwake
         </h1>
         <p className="mt-4 text-pretty text-sm leading-relaxed text-amber-100/75 sm:text-base">
-          Click Enter, then walk. On-screen buttons work if the keyboard does
-          not. Drag the world to look. The feather on the road is already humming.
+          Click anywhere or press Enter. Then walk with WASD or the on-screen
+          pads. Drag the world to look. The feather on the road is already humming.
         </p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <Button
-            size="lg"
-            onClick={() => {
-              unlockAudio();
-              sting("ui");
-              start();
-            }}
-          >
+          <Button size="lg" onClick={enter} onPointerDown={(e) => { e.stopPropagation(); enter(); }}>
             Enter the Vale
           </Button>
           {saved && (
             <Button
               variant="runic"
               size="lg"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 load();
                 unlockAudio();
                 start();
@@ -453,10 +475,12 @@ function Hold({
       className="min-w-12"
       onPointerDown={(e) => {
         e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
         hold();
       }}
       onPointerUp={release}
-      onPointerLeave={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
     >
       {label}
     </Button>

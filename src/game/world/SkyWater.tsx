@@ -100,6 +100,7 @@ export function SkyWater() {
           ref={skyMat}
           vertexShader={skyVert}
           fragmentShader={skyFrag}
+          glslVersion={THREE.GLSL1}
           side={THREE.BackSide}
           depthWrite={false}
           uniforms={{
@@ -117,6 +118,7 @@ export function SkyWater() {
         <shaderMaterial
           vertexShader={waterVert}
           fragmentShader={waterFrag}
+          glslVersion={THREE.GLSL1}
           transparent
           uniforms={waterUniforms}
         />
@@ -126,6 +128,7 @@ export function SkyWater() {
         <shaderMaterial
           vertexShader={waterVert}
           fragmentShader={waterFrag}
+          glslVersion={THREE.GLSL1}
           transparent
           uniforms={waterUniforms}
         />

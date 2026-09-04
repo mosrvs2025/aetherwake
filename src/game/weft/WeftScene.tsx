@@ -59,12 +59,14 @@ export function WeftScene() {
     dt = Math.min(dt, 0.05);
     if (mat.current) mat.current.uniforms.uTime.value += dt;
     const look = consumeLook();
-    yaw.current -= look.x * 0.0022;
+    yaw.current -= (look.x + runtime.touch.lookX * 14) * 0.0022;
     const axis = input.axis();
+    const mx = axis.x + runtime.touch.moveX;
+    const mz = axis.y + runtime.touch.moveY;
     const fwd = new THREE.Vector3(Math.sin(yaw.current), 0, Math.cos(yaw.current));
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
-    pos.current.addScaledVector(fwd, -axis.y * dt * 6);
-    pos.current.addScaledVector(right, axis.x * dt * 6);
+    pos.current.addScaledVector(fwd, -mz * dt * 6);
+    pos.current.addScaledVector(right, mx * dt * 6);
     if (input.pressed("Space")) pos.current.y += dt * 4;
     if (input.pressed("ControlLeft")) pos.current.y -= dt * 4;
     pos.current.y = Math.max(0.6, Math.min(8, pos.current.y));
@@ -127,6 +129,7 @@ export function WeftScene() {
           ref={mat}
           vertexShader={auroraVert}
           fragmentShader={auroraFrag}
+          glslVersion={THREE.GLSL1}
           side={THREE.BackSide}
           uniforms={{ uTime: { value: 0 } }}
         />

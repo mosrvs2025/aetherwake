@@ -17,11 +17,12 @@ npm install
 npm run dev
 ```
 
-Open the printed localhost URL. Click the canvas to capture the mouse.
+Open http://127.0.0.1:43141 — or the Vercel URL after deploy. Click anywhere on the title, or press Enter. No pointer lock required.
 
 ## Play
 
-- **WASD** move, **mouse** look, **Shift** sprint, **Space** jump (hold in air to glide once you have wind)
+- **WASD** walk, **← →** turn, **hold-drag** the world to look, **Shift** sprint, **Space** jump (hold in air to glide once you have wind)
+- On-screen pads work if the keyboard does not
 - **Click** to strike
 - **F** to take, speak, hold-to-absorb, or place
 - **Q / E / R** surge whatever is attuned to those limbs
@@ -42,6 +43,6 @@ Look north from Hearthmere. The white commas in the sky are stormkites. The too-
 
 ## Stack
 
-Next.js, React Three Fiber, custom GLSL sky/water, postprocessing bloom, Web Audio drones, local save.
+Next.js, React Three Fiber, custom GLSL sky/water, Web Audio drones, local save.
 
 No account. No backend. Your memory of the Vale lives in the browser.
