@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Sparkles, Trail } from "@react-three/drei";
+import { Sparkles } from "@react-three/drei";
 import { CREATURES, SPAWNS } from "@/game/data/creatures";
 import { heightAt } from "@/game/data/world";
 import { POWERS, type PowerId } from "@/game/data/powers";
@@ -426,16 +426,14 @@ function Titan({ color, active }: { color: [number, number, number]; active: boo
 function Boss({ color, active }: { color: [number, number, number]; active: boolean }) {
   return (
     <group>
-      <Trail width={1.4} length={6} color="#fde68a" attenuation={(t) => t * t}>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <capsuleGeometry args={[0.7, 5.4, 6, 10]} />
-          <meshStandardMaterial
-            color={rgb(color)}
-            emissive="#fbbf24"
-            emissiveIntensity={active ? 1.5 : 0.45}
-          />
-        </mesh>
-      </Trail>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <capsuleGeometry args={[0.7, 5.4, 6, 10]} />
+        <meshStandardMaterial
+          color={rgb(color)}
+          emissive="#fbbf24"
+          emissiveIntensity={active ? 1.5 : 0.45}
+        />
+      </mesh>
       <mesh position={[0, 0.2, 2.4]}>
         <coneGeometry args={[0.7, 1.6, 6]} />
         <meshStandardMaterial color="#fef3c7" emissive="#f59e0b" emissiveIntensity={0.8} />
