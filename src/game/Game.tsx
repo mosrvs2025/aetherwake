@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { EffectComposer, Bloom, Vignette, ChromaticAberration } from "@react-three/postprocessing";
 import { WorldScene } from "@/game/world/WorldScene";
 import { Player } from "@/game/player/Player";
 import { CreatureField, populateWorld } from "@/game/creatures/Field";
@@ -38,12 +37,18 @@ export default function Game() {
   }, []);
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-[#07060c]">
+    <div
+      className="relative h-dvh w-full overflow-hidden bg-[#07060c] outline-none"
+      tabIndex={0}
+      onPointerDown={(e) => {
+        (e.currentTarget as HTMLDivElement).focus();
+      }}
+    >
       <Canvas
         shadows
-        dpr={[1, 1.75]}
-        camera={{ fov: 58, near: 0.12, far: 480, position: [0, 14, 32] }}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        dpr={[1, 1.5]}
+        camera={{ fov: 58, near: 0.12, far: 420, position: [0, 14, 32] }}
+        gl={{ antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
         onCreated={({ gl }) => {
           gl.setClearColor("#07060c");
         }}
@@ -57,15 +62,6 @@ export default function Game() {
             <CreatureField />
           </>
         )}
-        <EffectComposer enableNormalPass={false}>
-          <Bloom
-            intensity={mode === "weft" ? 1.4 : 0.65}
-            luminanceThreshold={0.28}
-            mipmapBlur
-          />
-          <Vignette eskil={false} offset={0.25} darkness={0.7} />
-          <ChromaticAberration offset={[0.0006, 0.0008]} />
-        </EffectComposer>
       </Canvas>
       <TitleScreen />
       <HUD />

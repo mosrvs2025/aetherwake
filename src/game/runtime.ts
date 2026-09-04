@@ -66,6 +66,7 @@ export const runtime = {
   attackPressed: false,
   prompt: "",
   uiOpen: false,
+  snapped: false,
   touch: {
     active: false,
     moveX: 0,
