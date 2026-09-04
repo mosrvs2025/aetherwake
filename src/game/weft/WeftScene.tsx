@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { Float, Sparkles, Stars, Text } from "@react-three/drei";
+import { Float, Sparkles, Stars } from "@react-three/drei";
 import { useGame } from "@/game/store";
 import { POWERS, type PowerId } from "@/game/data/powers";
 import { runtime } from "@/game/runtime";
@@ -141,12 +141,10 @@ export function WeftScene() {
           emissiveIntensity={0.8}
         />
       </mesh>
-      <Text position={[0, 3.4, 0]} fontSize={0.35} color="#ddd6fe" anchorX="center">
-        THE WEFT
-      </Text>
-      <Text position={[0, 2.9, 0]} fontSize={0.16} color="#a78bfa" anchorX="center">
-        Walk two songs together. Do not expect a recipe.
-      </Text>
+      <mesh position={[0, 3.3, 0]}>
+        <octahedronGeometry args={[0.35, 0]} />
+        <meshStandardMaterial color="#ddd6fe" emissive="#a78bfa" emissiveIntensity={1.4} />
+      </mesh>
       {motes.map((m) => (
         <Mote key={m.id} {...m} held={runtime.weftHeld === m.id} />
       ))}
@@ -185,9 +183,6 @@ function Mote({
             roughness={0.25}
           />
         </mesh>
-        <Text position={[0, 1.05, 0]} fontSize={0.18} color={def.color} anchorX="center">
-          {def.name}
-        </Text>
         <Sparkles count={12} scale={2} size={2} color={def.color} />
       </group>
     </Float>

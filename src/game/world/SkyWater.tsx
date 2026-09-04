@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Cloud, Stars } from "@react-three/drei";
+import { Stars } from "@react-three/drei";
 import { WORLD } from "@/game/data/world";
 import { runtime } from "@/game/runtime";
 
@@ -108,23 +108,7 @@ export function SkyWater() {
           }}
         />
       </mesh>
-      <Stars radius={200} depth={60} count={1200} factor={3} fade speed={0.4} />
-      <Cloud
-        position={[-40, 48, -60]}
-        opacity={0.28}
-        speed={0.12}
-        bounds={[40, 6, 18]}
-        segments={18}
-        color="#c4b5fd"
-      />
-      <Cloud
-        position={[70, 36, 20]}
-        opacity={0.22}
-        speed={0.08}
-        bounds={[28, 5, 14]}
-        segments={16}
-        color="#fdba74"
-      />
+      <Stars radius={200} depth={60} count={900} factor={3} fade speed={0.4} />
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[-90, WORLD.water, -5]}
