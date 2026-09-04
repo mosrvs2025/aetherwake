@@ -8,6 +8,7 @@ import { useGame, hasSave } from "@/game/store";
 import { BIOME_NAME, biomeAt } from "@/game/data/world";
 import { ITEM_FLAVOR, ITEM_NAMES, POWERS, type PowerId } from "@/game/data/powers";
 import { unlockAudio, sting } from "@/game/audio";
+import { input } from "@/game/input";
 import { cn } from "@/lib/utils";
 
 export function TitleScreen() {
@@ -27,9 +28,8 @@ export function TitleScreen() {
           Aetherwake
         </h1>
         <p className="mt-4 text-pretty text-sm leading-relaxed text-amber-100/75 sm:text-base">
-          Almost everything here is still singing. Witness a power in the wild,
-          steal it when it is weak or willing, then rest — and discover that
-          your stolen songs have geography.
+          Click Enter, then walk. On-screen buttons work if the keyboard does
+          not. Drag the world to look. The feather on the road is already humming.
         </p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Button
@@ -191,12 +191,12 @@ export function HUD() {
             );
           })}
         </div>
-        <p className="mt-2 text-center text-[10px] text-amber-100/40">
-          Attunement is a body, not a menu. 1 / 2 / 3 cycle what lives in a limb.
+        <p className="mt-2 text-center text-[11px] text-amber-100/70">
+          WASD walk · ← → turn · hold-drag look · click strike · F take
         </p>
       </div>
 
-      <TouchPad />
+      <PlayPad />
 
       {mode === "weft" && (
         <div className="absolute left-4 bottom-6 max-w-sm text-sm text-violet-100/80">
@@ -409,52 +409,65 @@ function Panel({
   );
 }
 
-function TouchPad() {
-  const [touch, setTouch] = useState(false);
-  useEffect(() => {
-    setTouch("ontouchstart" in window);
-  }, []);
-  if (!touch) return null;
+function PlayPad() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-24 flex justify-between px-4 sm:hidden">
-      <Joystick
-        onChange={(x, y) => {
-          runtime.touch.moveX = x;
-          runtime.touch.moveY = y;
-        }}
-      />
-      <div className="pointer-events-auto flex flex-col gap-2">
-        <Button size="sm" variant="runic" onPointerDown={() => (inputSpace(true))} onPointerUp={() => inputSpace(false)}>
-          Jump
-        </Button>
-        <Button size="sm" variant="runic" onClick={() => { runtime.attackPressed = true; }}>
+    <div className="pointer-events-none absolute inset-x-0 bottom-28 flex items-end justify-between px-3 sm:bottom-32 sm:px-5">
+      <div className="pointer-events-auto grid grid-cols-3 gap-1">
+        <span />
+        <Hold label="↑" hold={() => { runtime.touch.moveY = -1; }} release={() => { runtime.touch.moveY = 0; }} />
+        <span />
+        <Hold label="←" hold={() => { runtime.touch.moveX = -1; }} release={() => { runtime.touch.moveX = 0; }} />
+        <Hold label="↓" hold={() => { runtime.touch.moveY = 1; }} release={() => { runtime.touch.moveY = 0; }} />
+        <Hold label="→" hold={() => { runtime.touch.moveX = 1; }} release={() => { runtime.touch.moveX = 0; }} />
+      </div>
+      <div className="pointer-events-auto flex flex-col gap-1">
+        <Hold label="Look L" hold={() => { runtime.touch.lookX = -1.4; }} release={() => { runtime.touch.lookX = 0; }} />
+        <Hold label="Look R" hold={() => { runtime.touch.lookX = 1.4; }} release={() => { runtime.touch.lookX = 0; }} />
+      </div>
+      <div className="pointer-events-auto flex flex-col gap-1">
+        <Hold label="Jump" hold={() => inputSpace(true)} release={() => inputSpace(false)} />
+        <Button size="sm" variant="runic" onClick={() => { input.attack = true; }}>
           Strike
         </Button>
-        <Button size="sm" onClick={() => useGame.getState().whisper(runtime.prompt || "…")}>
-          F
+        <Button size="sm" variant="runic" onPointerDown={() => downsF(true)} onPointerUp={() => downsF(false)}>
+          Take
         </Button>
       </div>
     </div>
   );
 }
 
+function Hold({
+  label,
+  hold,
+  release,
+}: {
+  label: string;
+  hold: () => void;
+  release: () => void;
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="runic"
+      className="min-w-12"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        hold();
+      }}
+      onPointerUp={release}
+      onPointerLeave={release}
+    >
+      {label}
+    </Button>
+  );
+}
+
+function downsF(down: boolean) {
+  window.dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code: "KeyF" }));
+}
+
 function inputSpace(down: boolean) {
   const e = new KeyboardEvent(down ? "keydown" : "keyup", { code: "Space" });
   window.dispatchEvent(e);
-}
-
-function Joystick({ onChange }: { onChange: (x: number, y: number) => void }) {
-  return (
-    <div
-      className="pointer-events-auto h-28 w-28 rounded-full border border-white/15 bg-black/30"
-      onTouchMove={(e) => {
-        const t = e.touches[0];
-        const r = e.currentTarget.getBoundingClientRect();
-        const x = (t.clientX - r.left) / r.width * 2 - 1;
-        const y = (t.clientY - r.top) / r.height * 2 - 1;
-        onChange(Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y)));
-      }}
-      onTouchEnd={() => onChange(0, 0)}
-    />
-  );
 }
