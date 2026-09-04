@@ -53,18 +53,25 @@ export function Player() {
       return;
     }
     if (mode !== "playing") return;
+
+    if (!runtime.snapped) {
+      runtime.player.y = heightAt(runtime.player.x, runtime.player.z) + 1.05;
+      runtime.snapped = true;
+    }
+
     if (runtime.uiOpen) {
       consumeLook();
       return;
     }
 
+    if (input.pressed("ArrowLeft")) runtime.yaw += dt * 1.85;
+    if (input.pressed("ArrowRight")) runtime.yaw -= dt * 1.85;
+
     const look = consumeLook();
     const touch = runtime.touch;
-    runtime.yaw -= (look.x + touch.lookX * 12) * 0.00215;
-    runtime.pitch -= (look.y + touch.lookY * 12) * 0.00215;
+    runtime.yaw -= (look.x + touch.lookX * 14) * 0.0034;
+    runtime.pitch -= (look.y + touch.lookY * 14) * 0.0034;
     runtime.pitch = Math.max(-1.15, Math.min(0.45, runtime.pitch));
-    touch.lookX = 0;
-    touch.lookY = 0;
 
     const axis = input.axis();
     let mx = axis.x + touch.moveX;
@@ -242,14 +249,7 @@ export function Player() {
   });
 
   useEffect(() => {
-    const el = renderer.domElement;
-    const onClick = () => {
-      if (useGame.getState().mode === "playing" && !runtime.uiOpen) {
-        el.requestPointerLock();
-      }
-    };
-    el.addEventListener("click", onClick);
-    return () => el.removeEventListener("click", onClick);
+    renderer.domElement.style.cursor = "grab";
   }, [renderer]);
 
   return (
