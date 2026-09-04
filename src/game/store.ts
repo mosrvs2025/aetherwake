@@ -296,8 +296,9 @@ export const useGame = create<GameStore>((set, get) => ({
   setMode: (m) => set({ mode: m }),
 
   start: () => {
+    runtime.snapped = false;
     set({ mode: "playing", started: true });
-    get().whisper("The Vale is dreaming with its eyes open. Look at what shimmers.");
+    get().whisper("WASD walks. Arrow keys turn. Drag the mouse to look. Take the humming feather on the road.");
   },
 
   enterWeft: () => {
