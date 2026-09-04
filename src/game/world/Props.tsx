@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import * as THREE from "three";
-import { Float, Sparkles, Text } from "@react-three/drei";
+import { Float, Sparkles } from "@react-three/drei";
 import { biomeAt, heightAt, SETTLEMENT } from "@/game/data/world";
 import { useGame } from "@/game/store";
 import { runtime } from "@/game/runtime";
@@ -159,14 +159,6 @@ export function Settlement() {
           <meshStandardMaterial color="#fb923c" emissive="#ea580c" emissiveIntensity={1.4} />
         </mesh>
         <Sparkles count={18} scale={2.2} size={2.5} color="#fdba74" speed={0.4} />
-        <Text
-          position={[0, 2.2, 0]}
-          fontSize={0.28}
-          color="#fde68a"
-          anchorX="center"
-        >
-          Hearth
-        </Text>
       </group>
       <group position={[-3.2, heightAt(-3.2, 21.4), 21.4]}>
         <mesh position={[0, 0.15, 0]} rotation={[Math.PI / 2, 0, 0]}>
@@ -179,9 +171,6 @@ export function Settlement() {
             <meshStandardMaterial color="#ddd6fe" emissive="#a78bfa" emissiveIntensity={1.2} />
           </mesh>
         </Float>
-        <Text position={[0, 2.1, 0]} fontSize={0.26} color="#ddd6fe" anchorX="center">
-          Weft Camp
-        </Text>
       </group>
       {SETTLEMENT.npcs.map((n) => (
         <Npc key={n.id} {...n} />
@@ -193,14 +182,10 @@ export function Settlement() {
         <cylinderGeometry args={[0.08, 0.14, 8, 6]} />
         <meshStandardMaterial color="#a8a29e" />
       </mesh>
-      <Text
-        position={[0, heightAt(0, 18) + 11.2, 18]}
-        fontSize={0.55}
-        color="#fde68a"
-        anchorX="center"
-      >
-        HEARTHMERE
-      </Text>
+      <mesh position={[0, heightAt(0, 18) + 11.1, 18]}>
+        <boxGeometry args={[6.4, 0.7, 0.2]} />
+        <meshStandardMaterial color="#1c1917" emissive="#fde68a" emissiveIntensity={0.35} />
+      </mesh>
     </group>
   );
 }
@@ -245,9 +230,10 @@ function Npc({
         <sphereGeometry args={[0.22, 8, 8]} />
         <meshStandardMaterial color="#f5e6d3" />
       </mesh>
-      <Text position={[0, 2.25, 0]} fontSize={0.2} color="#fde68a" anchorX="center">
-        {name}
-      </Text>
+      <mesh position={[0, 2.15, 0]}>
+        <sphereGeometry args={[0.08, 8, 8]} />
+        <meshStandardMaterial color="#fde68a" emissive="#fbbf24" emissiveIntensity={1.2} />
+      </mesh>
     </group>
   );
 }
