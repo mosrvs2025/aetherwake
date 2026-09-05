@@ -159,17 +159,19 @@ export function makeLeafTexture(size = 256, seed = 'leaf'): THREE.DataTexture {
 /** A single blade-cluster alpha for grass billboards. */
 export function makeGrassTexture(size = 128): THREE.DataTexture {
   const data = new Uint8Array(size * size * 4);
-  const blades = 9;
+  // A dense tuft, not a handful of blades: at gameplay density a sparse card
+  // reads as isolated weeds standing in mown turf.
+  const blades = 26;
   const acc = new Float32Array(size * size);
   const rnd = (i: number) => {
     const t = Math.sin(i * 12.9898) * 43758.5453;
     return t - Math.floor(t);
   };
   for (let b = 0; b < blades; b++) {
-    const x0 = 0.08 + rnd(b) * 0.84;
-    const lean = (rnd(b + 40) - 0.5) * 0.5;
-    const height = 0.55 + rnd(b + 90) * 0.45;
-    const w0 = 0.012 + rnd(b + 130) * 0.016;
+    const x0 = 0.05 + rnd(b) * 0.90;
+    const lean = (rnd(b + 40) - 0.5) * 0.55;
+    const height = 0.48 + rnd(b + 90) * 0.52;
+    const w0 = 0.016 + rnd(b + 130) * 0.020;
     for (let s = 0; s <= 64; s++) {
       const t = s / 64;
       if (t > height) break;
@@ -187,7 +189,7 @@ export function makeGrassTexture(size = 128): THREE.DataTexture {
     }
   }
   for (let i = 0; i < size * size; i++) {
-    const a = clamp01(acc[i] * 1.6);
+    const a = clamp01(acc[i] * 1.9);
     const v = lerp(0.42, 1.0, clamp01(acc[i]));
     data[i * 4] = Math.round(255 * v * 0.8);
     data[i * 4 + 1] = Math.round(255 * v);

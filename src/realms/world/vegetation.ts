@@ -58,9 +58,9 @@ const WIND_VERT = /* glsl */ `
     // fog has already eaten.
     vec3 instPos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     float dc = distance(instPos, cameraPosition);
-    float near = smoothstep(uClumpFade.x * 0.35, uClumpFade.x, dc);
-    float far = 1.0 - smoothstep(uClumpFade.y * 0.72, uClumpFade.y, dc);
-    transformed *= near * far;
+    float nearK = uClumpFade.x > 0.0 ? smoothstep(uClumpFade.x * 0.35, uClumpFade.x, dc) : 1.0;
+    float farK = 1.0 - smoothstep(uClumpFade.y * 0.74, uClumpFade.y, dc);
+    transformed *= nearK * farK;
   }
   {
     vec3 worldNow = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
@@ -139,15 +139,15 @@ function buildConifer(rng: Random, height: number) {
     path.push(V(lean * height * t * t, trunkTop * t, lean * 0.6 * height * t * t));
     radii.push(lerp(height * 0.042, height * 0.006, Math.pow(t, 0.75)) * rng.range(0.92, 1.12));
   }
-  bark.push(tube(path, radii, { radial: 7 }));
+  bark.push(tube(path, radii, { radial: 5 }));
 
-  const whorls = 11;
+  const whorls = 9;
   for (let i = 0; i < whorls; i++) {
     const t = 0.17 + (i / (whorls - 1)) * 0.81;
     const y = height * t;
     // a proper conic profile: widest low down, tapering to the spire
     const r = (Math.pow(1 - t, 0.78) * 0.30 + 0.035) * height * rng.range(0.9, 1.12);
-    const cards = t > 0.86 ? 3 : 5;
+    const cards = t > 0.82 ? 3 : 4;
     for (let k = 0; k < cards; k++) {
       const a = (k / cards) * Math.PI * 2 + rng.range(-0.35, 0.35) + i * 0.7;
       const card = leafCard(r * 2.5, r * 1.9);
@@ -180,7 +180,7 @@ function buildBroadleaf(rng: Random, height: number) {
     path.push(V(lean * height * t * t, trunkTop * t, lean * 0.5 * height * t * t));
     radii.push(lerp(height * 0.055, height * 0.026, t));
   }
-  bark.push(tube(path, radii, { radial: 7 }));
+  bark.push(tube(path, radii, { radial: 6 }));
 
   const branches = rng.int(3, 4);
   const tips: THREE.Vector3[] = [];
@@ -194,11 +194,11 @@ function buildBroadleaf(rng: Random, height: number) {
       start.z + Math.sin(a) * len * 0.72,
     );
     const mid = start.clone().lerp(end, 0.5).add(V(0, len * 0.10, 0));
-    bark.push(tube([start, mid, end], [height * 0.020, height * 0.013, height * 0.007], { radial: 5 }));
+    bark.push(tube([start, mid, end], [height * 0.020, height * 0.013, height * 0.007], { radial: 4 }));
     tips.push(end);
   }
   for (const tip of tips) {
-    const clusters = rng.int(5, 7);
+    const clusters = rng.int(4, 6);
     for (let c = 0; c < clusters; c++) {
       const size = height * rng.range(0.26, 0.42);
       const card = leafCard(size * 2.3, size * 1.8);
@@ -226,8 +226,8 @@ function buildDeadwood(rng: Random, height: number) {
     path.push(V(Math.sin(t * 3.1 + twist) * height * 0.10, height * t, Math.cos(t * 2.4 + twist) * height * 0.08));
     radii.push(lerp(height * 0.048, height * 0.008, t));
   }
-  bark.push(tube(path, radii, { radial: 6 }));
-  const branches = rng.int(3, 6);
+  bark.push(tube(path, radii, { radial: 5 }));
+  const branches = rng.int(3, 5);
   for (let b = 0; b < branches; b++) {
     const t = rng.range(0.35, 0.9);
     const start = V(Math.sin(t * 3.1 + twist) * height * 0.10, height * t, Math.cos(t * 2.4 + twist) * height * 0.08);
@@ -315,6 +315,21 @@ export class InstancedScatter {
       mesh.computeBoundingSphere();
       this.group.add(mesh);
       this.meshes.push(mesh);
+    }
+  }
+
+  /**
+   * Shadow casting is per-mesh, so bucketing the scatter also gives us a cheap
+   * shadow LOD: buckets outside the light frustum simply stop casting, which is
+   * most of the forest most of the time.
+   */
+  updateShadowLod(x: number, z: number, radius: number) {
+    for (const m of this.meshes) {
+      const s = m.geometry.boundingSphere;
+      const cx = m.position.x + (s ? s.center.x : 0);
+      const cz = m.position.z + (s ? s.center.z : 0);
+      const r = s ? s.radius : 0;
+      m.castShadow = Math.hypot(cx - x, cz - z) - r < radius;
     }
   }
 
@@ -446,11 +461,15 @@ export class GrassField {
   dispose() { this.mesh.dispose(); }
 }
 
-/** Two crossed quads — the classic grass clump, cheap and reads well in motion. */
-export function grassClumpGeometry(height = 1) {
+/**
+ * Crossed quads — the classic ground-cover clump. Aspect ratio matters: a
+ * blade texture wants a tall narrow card, a leafy bush wants a wide short one,
+ * and using the wrong pairing turns a round leaf blob into a vertical smear.
+ */
+export function grassClumpGeometry(height = 1, width = 0.62) {
   const parts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 3; i++) {
-    const g = new THREE.PlaneGeometry(0.62, height, 1, 3);
+    const g = new THREE.PlaneGeometry(width, height, 1, 2);
     g.translate(0, height * 0.5, 0);
     g.rotateY((i / 3) * Math.PI);
     parts.push(g.toNonIndexed());
@@ -490,10 +509,13 @@ export function forestDensity(x: number, z: number, deps: VegetationDeps) {
 
 export function buildVegetation(deps: VegetationDeps) {
   const rng = new Random('realms-forest');
-  const bark = makeFoliageMaterial({ color: '#7c6549', roughness: 0.92, key: 'bark', windAmp: 0.014, tinted: false });
+  const bark = makeFoliageMaterial({
+    color: '#7c6549', roughness: 0.92, key: 'bark', windAmp: 0.014, tinted: false,
+    clumpFade: [0, 540],
+  });
   const leaf = makeFoliageMaterial({
     color: '#ffffff', map: Textures.leaf, alphaTest: 0.36, side: THREE.DoubleSide,
-    roughness: 0.88, key: 'leaf', windAmp: 0.075,
+    roughness: 0.88, key: 'leaf', windAmp: 0.075, clumpFade: [0, 540],
   });
 
   // three prototypes per species so a forest is not a copy-paste
@@ -546,7 +568,9 @@ export function buildVegetation(deps: VegetationDeps) {
       count += list.length;
       const mats = s === 2 ? [bark] : [bark, leaf];
       const sc = new InstancedScatter(speciesGeos[s][v], mats, list, {
-        bucket: 170, castShadow: true, receiveShadow: true,
+        // Bigger buckets mean coarser culling but far fewer draw calls; at nine
+        // species/variant combinations the call count matters more.
+        bucket: 320, castShadow: true, receiveShadow: true,
         stiffness: s === 2 ? 0.012 : 0.045,
       });
       scatters.push(sc);

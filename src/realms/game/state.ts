@@ -100,6 +100,8 @@ interface RealmsState {
   coords: [number, number, number];
   fps: number;
   quality: string;
+  drawCalls: number;
+  tris: number;
   showDebug: boolean;
 
   quests: QuestView[];
@@ -155,6 +157,8 @@ const initial: RealmsState = {
   coords: [0, 0, 0],
   fps: 60,
   quality: 'high',
+  drawCalls: 0,
+  tris: 0,
   showDebug: false,
   quests: [],
   activeQuestId: null,

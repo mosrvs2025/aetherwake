@@ -105,7 +105,7 @@ export class Input {
     this.on(this.el, 'pointerdown', (e) => {
       if (!this.enabled) return;
       if (e.pointerType === 'touch') { this.onTouchDown(e); return; }
-      this.el.setPointerCapture?.(e.pointerId);
+      try { this.el.setPointerCapture?.(e.pointerId); } catch { /* pointer already gone */ }
       this.pointerDown = true;
       if (e.button === 0) this.edges.add('attack');
       if (e.button === 2) this.edges.add('heavy');

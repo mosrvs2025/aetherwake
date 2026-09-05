@@ -52,7 +52,7 @@ export interface FlatPad {
  * Named places
  * ------------------------------------------------------------------ */
 
-export const START_POS = { x: 74, z: 668 };
+export const START_POS = { x: 74, z: 686 };
 
 export const LANDMARKS: Landmark[] = [
   {

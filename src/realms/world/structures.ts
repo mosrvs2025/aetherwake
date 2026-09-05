@@ -21,7 +21,7 @@ import { limb, roundedBox, V } from '../chars/geom';
 import type { Physics } from '../game/physics';
 import { AETHER } from '../chars/materials';
 
-export type MatKey = 'stone' | 'stoneDark' | 'wood' | 'roof' | 'metal' | 'rune' | 'cloth' | 'thatch' | 'gold';
+export type MatKey = 'stone' | 'stoneDark' | 'wood' | 'roof' | 'slate' | 'metal' | 'rune' | 'cloth' | 'thatch' | 'gold';
 
 export interface InteractPoint {
   id: string;
@@ -37,19 +37,20 @@ export function makeStructureMaterials() {
   // Masonry gets a rim too: a keep silhouetted against a bright sky is
   // otherwise a black hole in the frame.
   const mats: Record<MatKey, THREE.MeshStandardMaterial> = {
-    stone: mk('st-stone', { color: '#a8a396', roughness: 0.93, metalness: 0.0, map: detail, bumpMap: detail, bumpScale: 0.5 }),
-    stoneDark: mk('st-dark', { color: '#6a6d78', roughness: 0.86, metalness: 0.04, map: detail, bumpMap: detail, bumpScale: 0.7 }, 0.20),
+    // No colour map: box UVs stretch one tile across a whole wall, so a map
+    // only darkens by its average. Bump alone gives the surface some tooth.
+    stone: mk('st-stone', { color: '#bcb6a6', roughness: 0.93, metalness: 0.0, bumpMap: detail, bumpScale: 0.35 }),
+    stoneDark: mk('st-dark', { color: '#8b8f9c', roughness: 0.84, metalness: 0.05, bumpMap: detail, bumpScale: 0.5 }, 0.24),
     wood: mk('st-wood', { color: '#7c5c3e', roughness: 0.9, metalness: 0.0 }),
-    roof: mk('st-roof', { color: '#6d4c42', roughness: 0.86, metalness: 0.02 }),
+    roof: mk('st-roof', { color: '#7a5347', roughness: 0.86, metalness: 0.02 }),
+    // the Keep is dark slate, not village terracotta
+    slate: mk('st-slate', { color: '#4d5560', roughness: 0.70, metalness: 0.10 }, 0.20),
     metal: mk('st-metal', { color: '#5b626f', roughness: 0.40, metalness: 0.72 }, 0.24),
     rune: mk('st-rune', { color: '#05070b', emissive: AETHER.clone(), emissiveIntensity: 2.6, roughness: 0.4, metalness: 0.2 }, 0),
     cloth: mk('st-cloth', { color: '#8e363d', roughness: 0.95, metalness: 0, side: THREE.DoubleSide }, 0.18),
     thatch: mk('st-thatch', { color: '#b3924f', roughness: 0.98, metalness: 0 }),
     gold: mk('st-gold', { color: '#d4ad57', roughness: 0.32, metalness: 0.9 }, 0.22),
   };
-  // world-space triplanar-ish UVs would be nicer, but repeating the detail map
-  // at a small scale is enough at these distances
-  mats.stone.map!.repeat.set(1, 1);
   return mats;
 }
 
@@ -477,7 +478,7 @@ function tower(b: StructureBuilder, x: number, z: number, base: number, r: numbe
     b.deco('stoneDark', b.xf(roundedBox(1.0, 1.5, 0.7, 0.06, 1), x + Math.cos(a) * r * 1.12, base + h + 1.75, z + Math.sin(a) * r * 1.12, -a));
   }
   if (opts.roof) {
-    b.deco('roof', b.xf(coneRoof(r * 1.35, r * 2.6, 14), x, base + h + 1.0, z));
+    b.deco('slate', b.xf(coneRoof(r * 1.35, r * 2.6, 14), x, base + h + 1.0, z));
   }
   if (opts.runes) {
     for (let i = 0; i < 3; i++) {
@@ -553,7 +554,7 @@ export function buildSkyfallKeep(b: StructureBuilder, cx: number, cz: number) {
   // ---- the spire: the thing you can see from the far side of the shelf ----
   const spireX = cx, spireZ = kz - 8;
   tower(b, spireX, spireZ, gy + 38, 12.5, 74, { runes: true });
-  b.deco('roof', b.xf(coneRoof(15.5, 46, 16), spireX, gy + 38 + 75, spireZ));
+  b.deco('slate', b.xf(coneRoof(15.5, 46, 16), spireX, gy + 38 + 75, spireZ));
   // the beacon, and a halo of rings around it
   b.deco('rune', b.xf(new THREE.SphereGeometry(3.4, 20, 14), spireX, gy + 38 + 122, spireZ));
   for (let i = 0; i < 3; i++) {
@@ -616,6 +617,44 @@ export function buildWardensGate(b: StructureBuilder, cx: number, cz: number) {
   b.deco('rune', b.xf(roundedBox(0.30, 10.4, 0.62, 0.06, 1), cx, gy + 5.5, cz));
   b.deco('rune', b.xf(new THREE.TorusGeometry(1.5, 0.16, 10, 28), cx, gy + 6.4, cz + 0.35, 0, 0));
   b.point({ id: 'wardens_gate', kind: 'door', x: cx, y: gy + 1.2, z: cz + 4.5, data: { name: 'The Warden’s Gate', locked: true } });
+}
+
+/* ------------------------------------------------------------------ *
+ * The Watcher's Cliff
+ * ------------------------------------------------------------------ */
+
+/**
+ * A low parapet along the lip of the promontory. It exists for one reason: the
+ * very first thing a player does is push forward, and without it that is a
+ * hundred-and-seventy-metre drop three seconds into the game. The gap on the
+ * east side is where the road starts.
+ */
+export function buildWatchpost(b: StructureBuilder, cx: number, cz: number) {
+  const rng = new Random('watchpost');
+  const from = -34, to = 20;          // x offsets; the gap is east of +20
+  const step = 3.0;
+  for (let x = from; x <= to; x += step) {
+    // follow the lip: it curves away to the south at the flanks
+    const t = (x - from) / (to - from);
+    const bulge = Math.sin(t * Math.PI);
+    const px = cx + x;
+    const pz = cz - 7.5 - bulge * 2.4;
+    const gy = terrainHeight(px, pz);
+    if (gy < 150) continue;
+    // a couple of broken sections
+    const broken = rng.next() < 0.16;
+    const h = broken ? rng.range(0.3, 0.6) : 1.15;
+    b.box('stone', px, gy + h / 2, pz, step * 1.06, h, 0.62, 0, { round: 0.06, walkable: false });
+    if (!broken && Math.abs(x % 9) < step * 0.5) {
+      b.deco('stone', b.xf(roundedBox(0.9, 1.75, 0.9, 0.1, 1), px, gy + 0.85, pz));
+    }
+  }
+  // a cairn and a weathered marker where the road leaves
+  const mx = cx + 24, mz = cz - 5;
+  const my = terrainHeight(mx, mz);
+  b.deco('stone', b.xf(roundedBox(0.9, 3.2, 0.7, 0.12, 1), mx, my + 1.6, mz, 0.3));
+  b.deco('rune', b.xf(new THREE.TorusGeometry(0.42, 0.06, 7, 20), mx, my + 3.0, mz, 0, Math.PI / 2));
+  b.point({ id: 'watchpost_marker', kind: 'lore', x: mx, y: my + 1.4, z: mz, data: { text: 'watchpost' } });
 }
 
 /* ------------------------------------------------------------------ *

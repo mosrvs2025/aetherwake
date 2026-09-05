@@ -109,6 +109,10 @@ const NPC_DATA: Record<string, { name: string; dialogues: Array<{ id: string; li
 };
 
 const LORE: Record<string, { title: string; text: string }> = {
+  watchpost: {
+    title: "The Watcher's Cliff",
+    text: 'Nine beacons were lit from this stone. The Keep answered eight of them.',
+  },
   colonnade: {
     title: 'The Sunken Colonnade',
     text: 'They raised these columns to hold the sky up. The sky went anyway, and took the ground with it.',
@@ -224,7 +228,7 @@ export class Game {
           this.physics.build();
           this.player.spawn(START_POS.x, START_POS.z, Math.PI * 0.06);
           this.respawn.copy(this.player.pos);
-          this.companion.spawn(START_POS.x + 2.6, START_POS.z + 0.7, Math.PI * 0.06);
+          this.companion.spawn(START_POS.x + 2.6, START_POS.z + 0.4, Math.PI * 0.06);
           this.cam.reset(this.player.pos, this.player.yaw, -0.05);
           this.engine.bakeEnvironment(this.world.sky.mesh);
           this.world.terrain.primeAround(START_POS.x, START_POS.z, 46);
@@ -1187,6 +1191,8 @@ export class Game {
       coords: [Math.round(p.pos.x), Math.round(p.pos.y), Math.round(p.pos.z)],
       fps: Math.round(this.engine.fps),
       quality: this.engine.quality,
+      drawCalls: this.engine.renderer.info.render.calls,
+      tris: this.engine.renderer.info.render.triangles,
       compass, blips,
       playerAngle: camYaw,
       playTime: this.playTime,

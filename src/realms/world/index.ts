@@ -14,7 +14,7 @@ import { buildWorldData, type WorldDataResult } from './worlddata';
 import {
   StructureBuilder, makeStructureMaterials, buildAmberfell, buildColonnade,
   buildRiftspan, buildSkyfallKeep, buildWardensGate, buildShrine,
-  buildFloatingIsland, buildRockScatter, type InteractPoint, type MatKey,
+  buildFloatingIsland, buildRockScatter, buildWatchpost, type InteractPoint, type MatKey,
 } from './structures';
 import {
   buildVegetation, GrassField, grassClumpGeometry, makeFoliageMaterial,
@@ -24,7 +24,7 @@ import { Textures } from './textures';
 import { applyAtmosphere, atmo } from '../core/atmosphere';
 import {
   SEA_OF_CLOUD_Y, LAKE_Y, BRIDGE_X, BRIDGE_SOUTH_Z, BRIDGE_NORTH_Z, BRIDGE_Y,
-  FLOATING_ISLANDS, LANDMARKS,
+  FLOATING_ISLANDS, LANDMARKS, CLIFF,
 } from './atlas';
 import { terrainHeight, terrainSlope } from './heightfield';
 import type { Physics } from '../game/physics';
@@ -60,6 +60,7 @@ export class World {
   points: InteractPoint[] = [];
   islandTops: Array<{ x: number; y: number; z: number }> = [];
   treeCount = 0;
+  private scatters: InstancedScatter[] = [];
   private debugNoGrass = false;
   private debugNoFlowers = false;
   private structureMats!: Record<MatKey, THREE.MeshStandardMaterial>;
@@ -139,7 +140,8 @@ export class World {
           const b = new StructureBuilder(this.physics);
           buildAmberfell(b, -140, 250);
           buildColonnade(b, -372, 336);
-          buildShrine(b, 'shrine_cliff', 52, 688, "The Watcher's Cliff");
+          buildWatchpost(b, CLIFF.x, CLIFF.z);
+          buildShrine(b, 'shrine_cliff', 52, 692, "The Watcher's Cliff");
           buildShrine(b, 'shrine_wood', 40, 402, 'Emberpine Shrine');
           buildShrine(b, 'shrine_lake', 132, 196, 'Mirrowmere Shrine');
           buildShrine(b, 'shrine_rift', BRIDGE_X + 14, BRIDGE_SOUTH_Z + 22, 'Riftward Shrine');
@@ -180,6 +182,7 @@ export class World {
           });
           this.group.add(veg.group);
           this.treeCount = veg.count;
+          this.scatters.push(...veg.scatters);
           // trunks block movement, but only the big ones — brushing past saplings
           // should not feel like hitting a wall
           for (const sc of veg.scatters) {
@@ -201,7 +204,7 @@ export class World {
       {
         label: 'Scattering stone',
         run: () => {
-          const { protos, lists } = buildRockScatter(1500, (x, z) => {
+          const { protos, lists } = buildRockScatter(950, (x, z) => {
             if (this.blockedAt(x, z) > 0.5) return 0;
             const h = terrainHeight(x, z);
             if (h < LAKE_Y - 6 || h > 250) return 0;
@@ -222,9 +225,10 @@ export class World {
               tint: new THREE.Color().setHSL(0.09, 0.06, rng.range(0.55, 0.95)),
             }));
             const sc = new InstancedScatter(protos[i], rockMat, inst, {
-              bucket: 190, castShadow: true, receiveShadow: true, stiffness: 0,
+              bucket: 420, castShadow: true, receiveShadow: true, stiffness: 0,
             });
             grp.add(sc.group);
+            this.scatters.push(sc);
             for (const r of list) {
               if (r.s < 2.2) continue;
               this.physics.addCylinder(r.x, r.z, r.s * 0.75, r.y - r.s, r.y + r.s * 0.7, { walkable: true, solid: true });
@@ -237,9 +241,9 @@ export class World {
         label: 'Letting the grass in',
         run: () => {
           const grassMat = makeFoliageMaterial({
-            color: '#ffffff', map: Textures.grass, alphaTest: 0.34,
+            color: '#ffffff', map: Textures.grass, alphaTest: 0.28,
             side: THREE.DoubleSide, roughness: 0.9, key: 'grass', windAmp: 0.10,
-            clumpFade: [3.2, 66],
+            clumpFade: [2.4, 54],
           });
           const density = (x: number, z: number) => {
             const h = terrainHeight(x, z);
@@ -254,10 +258,10 @@ export class World {
           const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
           this.debugNoGrass = q.has('nograss');
           this.debugNoFlowers = q.has('noflowers');
-          this.grass = new GrassField(grassClumpGeometry(1.0), grassMat, {
-            tileSize: 9, radiusTiles: 7, perTile: 150,
+          this.grass = new GrassField(grassClumpGeometry(0.62, 0.78), grassMat, {
+            tileSize: 8, radiusTiles: 6, perTile: 300,
             density,
-            scale: [0.55, 1.35],
+            scale: [0.5, 1.05],
             colorA: new THREE.Color('#6d8a44'),
             colorB: new THREE.Color('#9aa451'),
           });
@@ -268,10 +272,10 @@ export class World {
             side: THREE.DoubleSide, roughness: 0.85, key: 'fern', windAmp: 0.055,
             clumpFade: [5.0, 58],
           });
-          this.flowers = new GrassField(grassClumpGeometry(0.8), fernMat, {
-            tileSize: 14, radiusTiles: 4, perTile: 26,
-            density: (x, z) => density(x, z) * 0.55,
-            scale: [0.8, 2.1],
+          this.flowers = new GrassField(grassClumpGeometry(0.95, 2.0), fernMat, {
+            tileSize: 14, radiusTiles: 4, perTile: 24,
+            density: (x, z) => density(x, z) * 0.5,
+            scale: [0.5, 1.05],
             colorA: new THREE.Color('#4f6a37'),
             colorB: new THREE.Color('#8f7a3e'),
           });
@@ -282,6 +286,8 @@ export class World {
   }
 
   update(camera: THREE.Camera, playerX: number, playerZ: number) {
+    // only the buckets the sun's frustum can reach need to cast
+    for (const sc of this.scatters) sc.updateShadowLod(playerX, playerZ, 165);
     if (this.sky) this.sky.mesh.position.copy(camera.position);
     if (this.cloudSea) {
       this.cloudSea.mesh.position.x = camera.position.x;

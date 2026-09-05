@@ -67,6 +67,9 @@ export class Engine {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = true;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // Accumulate render stats across every post pass so the debug read-out is
+    // the real per-frame cost rather than whatever the last pass did.
+    this.renderer.info.autoReset = false;
 
     this.camera = new THREE.PerspectiveCamera(58, 1, 0.6, 22000);
     this.camera.position.set(0, 200, 0);
@@ -199,6 +202,7 @@ export class Engine {
   }
 
   private tick() {
+    this.renderer.info.reset();
     const raw = this.clock.getDelta();
     const dt = Math.min(raw, 0.05);
     this.elapsed += dt;

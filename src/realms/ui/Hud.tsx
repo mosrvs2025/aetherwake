@@ -909,10 +909,12 @@ function DebugStats() {
   const fps = useRealms((s) => s.fps);
   const coords = useRealms((s) => s.coords);
   const quality = useRealms((s) => s.quality);
+  const drawCalls = useRealms((s) => s.drawCalls);
+  const tris = useRealms((s) => s.tris);
   if (!show) return null;
   return (
     <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/60 px-2 py-1 text-[10px] tabular-nums text-white/50">
-      {fps} fps · {quality} · {coords[0]},{coords[1]},{coords[2]}
+      {fps} fps · {quality} · {drawCalls} draws · {(tris / 1000).toFixed(0)}k tris · {coords[0]},{coords[1]},{coords[2]}
     </div>
   );
 }

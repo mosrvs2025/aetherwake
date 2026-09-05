@@ -182,7 +182,7 @@ const TERRAIN_MAP = /* glsl */ `
   // ---- splat weights ----
   float wRock = smoothstep(0.30, 0.60, slope + (med - 0.5) * 0.30);
   // snow settles on ledges and shoulders, never on a sheer face
-  float wSnow = smoothstep(206.0, 292.0, wp.y + (macro - 0.5) * 96.0)
+  float wSnow = smoothstep(272.0, 348.0, wp.y + (macro - 0.5) * 104.0)
               * (1.0 - smoothstep(0.34, 0.66, slope));
   float wShore = (1.0 - smoothstep(0.5, 8.0, abs(wp.y - uLakeY))) * (1.0 - wRock) * step(0.05, wd.b);
   float wRoad = wd.r * (1.0 - wRock * 0.85) * (1.0 - wSnow);
