@@ -93,7 +93,7 @@ export const LANDMARKS: Landmark[] = [
   },
   {
     id: 'wardens_gate', name: "The Warden's Gate", subtitle: 'Something is awake behind it',
-    x: -60, z: -430, discoverRadius: 70, icon: 'shrine', xp: 150,
+    x: -60, z: -444, discoverRadius: 70, icon: 'shrine', xp: 150,
   },
 ];
 
@@ -126,8 +126,8 @@ export const RIVER_LOWER: Array<[number, number]> = [
 export const PADS: FlatPad[] = [
   { x: -140, z: 250, radius: 66, falloff: 95, y: 58 },                  // Amberfell
   { x: -372, z: 336, radius: 62, falloff: 90, y: 74 },                  // Colonnade
-  { x: -60, z: -430, radius: 46, falloff: 78, y: 170 },                 // Warden's Gate
-  { x: -60, z: -560, radius: 104, falloff: 168, y: 252, strength: 0.94 },// Keep courtyard
+  { x: -60, z: -444, radius: 40, falloff: 66, y: 178 },                 // Warden's Gate
+  { x: -60, z: -566, radius: 100, falloff: 118, y: 238, strength: 0.94 },// Keep courtyard
   { x: -66, z: -106, radius: 20, falloff: 26, y: 100 },                 // bridge south head
   { x: -66, z: -242, radius: 20, falloff: 26, y: 100 },                 // bridge north head
 ];

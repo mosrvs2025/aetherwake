@@ -124,7 +124,7 @@ export const QUESTS: QuestDef[] = [
     objectives: [
       {
         id: 'kill_boss', text: 'Defeat the Warden of the Fall', done: false,
-        marker: [-60, 0, -554],
+        marker: [-60, 0, -560],
         match: (e) => e.type === 'boss' && e.stage === 'defeated',
       },
     ],

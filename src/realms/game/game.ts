@@ -237,7 +237,7 @@ export class Game {
             const h = terrainHeight(x, z);
             return h > LAKE_Y + 0.5 && h < 300 && !this.physics.inside(x, h + 1, z);
           });
-          this.combat.spawnBoss(-60, -554);
+          this.combat.spawnBoss(-60, -560);
           this.hookPlayer();
         },
       },

@@ -194,7 +194,8 @@ schema, the bone contract, and Blender export settings.
 | `?at=x,z&yaw=3.14` | drop the player somewhere |
 | `?inspect=warrior\|wolf\|tree` | model turntable (`&spin`, `&flat`, `&clip=run`) |
 | `?tdbg=1\|2\|3` | terrain albedo / world normal / baked AO |
-| `?debug` | FPS and coordinates |
+| `?nograss` `?noflowers` `?noshadow` | isolate a system |
+| `?debug` | FPS, draw calls, triangles, coordinates |
 
 ## Stack
 

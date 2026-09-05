@@ -39,8 +39,8 @@ export interface BuildStage {
 const EXCLUSIONS: Array<[number, number, number]> = [
   [-140, 250, 58],     // Amberfell
   [-372, 336, 52],     // Colonnade
-  [-60, -560, 96],     // Skyfall Keep
-  [-60, -430, 34],     // Warden's Gate
+  [-60, -566, 96],     // Skyfall Keep
+  [-60, -444, 34],     // Warden's Gate
   [-66, -170, 30],     // Riftspan corridor
   [74, 676, 30],       // Watcher's Cliff
 ];
@@ -127,8 +127,8 @@ export class World {
         run: () => {
           this.structureMats = makeStructureMaterials();
           const b = new StructureBuilder(this.physics);
-          buildSkyfallKeep(b, -60, -560);
-          buildWardensGate(b, -60, -430);
+          buildSkyfallKeep(b, -60, -566);
+          buildWardensGate(b, -60, -444);
           buildRiftspan(b, BRIDGE_X, BRIDGE_SOUTH_Z, BRIDGE_NORTH_Z, BRIDGE_Y);
           this.group.add(b.finish(this.structureMats, 'keep'));
           this.points.push(...b.points);

@@ -221,7 +221,7 @@ function gradeRoad(pts: Array<[number, number]>, perSegment: number, maxGrade: n
 function buildRoads() {
   if (roadsReady) return;
   const specs: Array<[Array<[number, number]>, number, number]> = [
-    [ROAD_MAIN, 26, 0.30],
+    [ROAD_MAIN, 26, 0.52],
     [ROAD_LAKE, 14, 0.34],
     [ROAD_RUIN, 12, 0.34],
   ];

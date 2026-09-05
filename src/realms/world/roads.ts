@@ -11,7 +11,10 @@ export const ROAD_MAIN: Array<[number, number]> = [
   // a switchback down the east flank of the Watcher's Cliff
   [78, 690], [112, 676], [128, 648], [116, 612], [80, 594], [52, 566], [26, 486], [-14, 420], [-64, 356], [-110, 300],
   [-140, 250], [-152, 186], [-136, 120], [-112, 54], [-96, -14], [-84, -60],
-  [-70, -104], [-66, -244], [-64, -300], [-62, -364], [-60, -430], [-58, -496], [-60, -556],
+  [-70, -104], [-66, -244], [-64, -296],
+  // a switchback up the face of the keep massif — the climb is 180 metres
+  [-16, -324], [-30, -366], [-96, -392], [-104, -424], [-60, -444],
+  [-58, -496], [-60, -556],
 ];
 
 /** A side track from the village out to Mirrowmere's western shore. */
