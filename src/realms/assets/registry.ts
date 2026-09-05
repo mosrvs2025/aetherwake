@@ -17,9 +17,7 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+import type { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { applyAtmosphere } from '../core/atmosphere';
 
 export interface ModelEntry {
@@ -74,8 +72,18 @@ class Registry {
     this.renderer = renderer;
   }
 
-  private makeLoader() {
+  /**
+   * The glTF stack is imported lazily. It is dead weight for a game whose
+   * content is generated, and some of its modules touch `import.meta.url` at
+   * evaluation time, which is not a thing that exists in a single-file build.
+   */
+  private async makeLoader(): Promise<GLTFLoader> {
     if (this.loader) return this.loader;
+    const [{ GLTFLoader }, { DRACOLoader }, { KTX2Loader }] = await Promise.all([
+      import('three/examples/jsm/loaders/GLTFLoader.js'),
+      import('three/examples/jsm/loaders/DRACOLoader.js'),
+      import('three/examples/jsm/loaders/KTX2Loader.js'),
+    ]);
     const loader = new GLTFLoader();
     const draco = new DRACOLoader();
     draco.setDecoderPath(this.manifest?.dracoPath ?? 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
@@ -97,6 +105,8 @@ class Registry {
   async init(): Promise<void> {
     if (this.loaded) return;
     this.loaded = true;
+    // single-file builds ship no manifest; skip the lookup entirely
+    if ((globalThis as Record<string, unknown>).__realmsNoManifest) return;
     try {
       const res = await fetch('/models/manifest.json', { cache: 'no-cache' });
       if (!res.ok) return;
@@ -115,7 +125,7 @@ class Registry {
 
   private async loadOne(id: string, entry: ModelEntry) {
     try {
-      const gltf: GLTF = await this.makeLoader().loadAsync(entry.url);
+      const gltf: GLTF = await (await this.makeLoader()).loadAsync(entry.url);
       const scene = gltf.scene;
       scene.scale.setScalar(entry.scale ?? 1);
       if (entry.yaw) scene.rotation.y = THREE.MathUtils.degToRad(entry.yaw);

@@ -11,11 +11,20 @@ can see it from where you are standing.
 
 ```bash
 npm install
-npm run dev
-# http://127.0.0.1:43141
+npm run dev        # http://127.0.0.1:43141
 ```
 
 Click once to begin (the browser needs a gesture before it will make a sound).
+
+Or build the whole game as **one self-contained HTML file** — no server, no
+install for the player, nothing fetched at runtime:
+
+```bash
+npm run bundle     # -> dist/realms.html  (~1.2 MB, open it directly)
+```
+
+That works because there are no assets to ship: the world, its music and its
+characters are all generated in code.
 
 ---
 
