@@ -1,23 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07060c;
-  --foreground: #f8f1e3;
+  --background: #04060a;
+  --foreground: #f2ecdf;
+  --aether: #63b6ff;
+  --aether-dim: #2a6ea8;
+  --ember: #ffab52;
+  --blood: #e0483c;
+  --gold: #d9b978;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans), "Outfit", sans-serif;
-  --font-display: var(--font-display), "Cinzel", serif;
+  --font-sans: var(--font-sans), "Outfit", system-ui, sans-serif;
+  --font-display: var(--font-display), "Cinzel", Georgia, serif;
 }
 
 html,
 body {
   height: 100%;
-  background: #07060c;
+  background: #04060a;
   color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 canvas {
@@ -29,5 +36,86 @@ canvas {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #a78bfa33 transparent;
+  scrollbar-color: #63b6ff33 transparent;
 }
+
+/* ------------------------------------------------------------------ *
+ * HUD primitives
+ * ------------------------------------------------------------------ */
+
+.rl-display {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: 0.09em;
+}
+
+.rl-panel {
+  background: linear-gradient(160deg, rgba(10, 16, 26, 0.82), rgba(6, 9, 15, 0.72));
+  border: 1px solid rgba(140, 175, 215, 0.16);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(190, 220, 255, 0.07);
+  backdrop-filter: blur(9px) saturate(1.1);
+}
+
+.rl-etch {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 18px rgba(99, 182, 255, 0.14);
+}
+
+.rl-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(4, 7, 12, 0.78);
+  border: 1px solid rgba(150, 180, 215, 0.18);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.rl-bar > i {
+  display: block;
+  height: 100%;
+  transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rl-bar-ghost {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  transition: width 900ms cubic-bezier(0.22, 1, 0.36, 1) 220ms;
+  opacity: 0.4;
+}
+
+@keyframes rl-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes rl-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rl-slide-in {
+  from { opacity: 0; transform: translateX(26px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes rl-banner {
+  0% { opacity: 0; letter-spacing: 0.5em; filter: blur(6px); }
+  18% { opacity: 1; letter-spacing: 0.16em; filter: blur(0); }
+  82% { opacity: 1; letter-spacing: 0.16em; filter: blur(0); }
+  100% { opacity: 0; letter-spacing: 0.22em; filter: blur(3px); }
+}
+@keyframes rl-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes rl-rise {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  16% { opacity: 1; transform: translate(-50%, -14px) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -60px) scale(0.95); }
+}
+@keyframes rl-spin {
+  to { transform: rotate(360deg); }
+}
+
+.rl-anim-up { animation: rl-fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rl-anim-in { animation: rl-fade-in 700ms ease both; }
+.rl-anim-slide { animation: rl-slide-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rl-anim-banner { animation: rl-banner 4200ms ease-in-out both; }
+.rl-anim-rise { animation: rl-rise 1150ms cubic-bezier(0.16, 1, 0.3, 1) both; }

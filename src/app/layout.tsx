@@ -15,9 +15,9 @@ const sans = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Aetherwake — steal the world's breath",
+  title: "REALMS — The Sundered Shelf",
   description:
-    "A 3D fantasy sandbox RPG where almost everything in the Vale can be witnessed, absorbed, braided, and grafted back into the land.",
+    "A third-person fantasy action RPG that runs in your browser. Cross a floating continent, light the shrines, and put down whatever is still wearing the Warden's armour.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
