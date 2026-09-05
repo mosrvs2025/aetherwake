@@ -81,24 +81,26 @@ const WATER_FRAG = /* glsl */ `
   vec2 scroll1 = -fdir * uTime * (0.6 + speed * 5.0);
   vec2 scroll2 = -fdir * uTime * (0.34 + speed * 3.1) + vec2(uTime * 0.02, uTime * -0.015);
 
-  vec4 n1 = texture2D(uDetail, wp.xz * 0.085 + scroll1 * 0.06);
-  vec4 n2 = texture2D(uDetail, wp.xz * 0.031 + scroll2 * 0.045 + 0.37);
-  vec2 g = ((n1.gb - 0.5) * 1.5 + (n2.gb - 0.5) * 1.1);
-  float rippleAmp = mix(0.55, 1.5, clamp(speed * 6.0, 0.0, 1.0));
+  vec4 n1 = texture2D(uDetail, wp.xz * 0.145 + scroll1 * 0.06);
+  vec4 n2 = texture2D(uDetail, wp.xz * 0.042 + scroll2 * 0.045 + 0.37);
+  vec2 g = ((n1.gb - 0.5) * 1.8 + (n2.gb - 0.5) * 1.5);
+  float rippleAmp = mix(1.15, 2.6, clamp(speed * 6.0, 0.0, 1.0));
   vec3 nrm = normalize(vec3(g.x * rippleAmp, 1.0, g.y * rippleAmp));
 
   vec3 viewDir = normalize(cameraPosition - wp);
   float fres = pow(1.0 - clamp(dot(viewDir, nrm), 0.0, 1.0), 4.0);
-  fres = mix(0.035, 1.0, fres);
+  fres = mix(0.030, 0.92, fres);
 
   vec3 refl = realmsSkyColor(reflect(-viewDir, nrm));
   // the sun's specular highlight, sharpened
   float spec = pow(clamp(dot(reflect(-viewDir, nrm), uSunDir), 0.0, 1.0), 340.0);
   refl += uSunColor * spec * 22.0;
 
-  vec3 body = mix(uShallow, uDeep, clamp(depth / 13.0, 0.0, 1.0));
+  vec3 body = mix(uShallow, uDeep, clamp(depth / 10.0, 0.0, 1.0));
   // scatter a bit of sun through the shallows
-  body += uSunColor * 0.06 * (1.0 - clamp(depth / 6.0, 0.0, 1.0));
+  body += uSunColor * 0.075 * (1.0 - clamp(depth / 6.0, 0.0, 1.0));
+  // a slow band of caustic-ish brightening reads as depth without a depth pass
+  body *= 0.86 + texture2D(uDetail, wp.xz * 0.018 - scroll2 * 0.02).a * 0.42;
 
   vec3 col = mix(body, refl, clamp(fres, 0.0, 1.0));
 
@@ -147,8 +149,8 @@ export function makeWaterMaterial(heightTexture: THREE.Texture) {
       uDetail: { value: Textures.detail },
       uHeight: { value: heightTexture },
       uWorldExtent: { value: WD_EXTENT },
-      uShallow: { value: new THREE.Color('#3f7f88') },
-      uDeep: { value: new THREE.Color('#0d2b40') },
+      uShallow: { value: new THREE.Color('#3e8f95') },
+      uDeep: { value: new THREE.Color('#08283f') },
       uFoam: { value: new THREE.Color('#dbeef2') },
     },
     transparent: true,

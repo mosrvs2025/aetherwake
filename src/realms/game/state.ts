@@ -123,6 +123,9 @@ interface RealmsState {
   bossPhase: number;
 
   lockOn: boolean;
+  lockName: string | null;
+  lockHp: number;
+  lockHpMax: number;
   showMap: boolean;
   showJournal: boolean;
   paused: boolean;
@@ -176,6 +179,9 @@ const initial: RealmsState = {
   bossHpMax: 1,
   bossPhase: 1,
   lockOn: false,
+  lockName: null,
+  lockHp: 0,
+  lockHpMax: 1,
   showMap: false,
   showJournal: false,
   paused: false,

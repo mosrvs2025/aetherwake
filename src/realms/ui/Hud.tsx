@@ -479,8 +479,25 @@ function DamageNumbers() {
 
 function Reticle() {
   const lockOn = useRealms((s) => s.lockOn);
+  const name = useRealms((s) => s.lockName);
+  const hp = useRealms((s) => s.lockHp);
+  const hpMax = useRealms((s) => s.lockHpMax);
   return (
     <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none">
+      {lockOn && name && (
+        <div className="absolute left-1/2 top-[-56px] w-[210px] -translate-x-1/2 text-center">
+          <div className="rl-display mb-1 text-[10px] tracking-[0.2em] text-white/70 rl-etch">
+            {name.toUpperCase()}
+          </div>
+          <div className="rl-bar h-[5px] rounded-[2px]" style={{ borderColor: 'rgba(255,140,110,0.28)' }}>
+            <i style={{
+              width: `${Math.max(0, (hp / hpMax) * 100)}%`,
+              background: 'linear-gradient(90deg,#a32419,#e2492f)',
+              boxShadow: '0 0 10px rgba(226,73,47,0.5)',
+            }} />
+          </div>
+        </div>
+      )}
       {lockOn ? (
         <svg width="34" height="34" viewBox="0 0 34 34" style={{ filter: 'drop-shadow(0 0 6px rgba(255,120,90,0.8))' }}>
           <circle cx="17" cy="17" r="11" fill="none" stroke="#ff8a68" strokeWidth="1.2" opacity="0.85" />

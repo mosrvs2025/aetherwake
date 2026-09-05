@@ -705,7 +705,7 @@ export class Game {
     this.lockedEnemy = null;
     this.player.lockTarget = null;
     this.cam.lockTarget = null;
-    realms.set({ lockOn: false });
+    realms.set({ lockOn: false, lockName: null });
   }
 
   private updateTrail(dt: number) {
@@ -1181,8 +1181,12 @@ export class Game {
       blips.push({ id: `e${e.id}`, kind: e === this.combat.boss ? 'boss' : 'enemy', x: r.mx, y: r.my });
     }
 
+    const lock = this.lockedEnemy;
     const boss = this.combat.boss;
     realms.set({
+      lockName: lock && !lock.dead ? lock.def.name : null,
+      lockHp: lock ? lock.hp : 0,
+      lockHpMax: lock ? lock.hpMax : 1,
       hp: p.stats.hp, hpMax: p.stats.hpMax,
       energy: p.stats.energy, energyMax: p.stats.energyMax,
       stamina: p.stats.stamina, staminaMax: p.stats.staminaMax,
@@ -1215,6 +1219,14 @@ export class Game {
     this.respawn.copy(this.player.pos);
     this.cam.reset(this.player.pos, yaw, -0.08);
     this.world.terrain.primeAround(x, z, 40);
+  }
+
+  /** Developer shortcut: aim the follow camera at a world point. */
+  lookAt(x: number, z: number) {
+    this.cam.yaw = Math.atan2(-(x - this.player.pos.x), -(z - this.player.pos.z));
+    this.player.yaw = this.cam.yaw;
+    this.player.group.rotation.y = this.cam.yaw;
+    this.cam.snapBehind(this.cam.yaw);
   }
 
   /** Developer shortcut: start the opening partway through. */

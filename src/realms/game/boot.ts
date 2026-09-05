@@ -77,6 +77,16 @@ async function inspect(container: HTMLElement, which: string): Promise<GameHandl
     }
     engine.scene.add(shown);
     update = () => {};
+  } else if (which === 'husk' || which === 'stalker' || which === 'warden') {
+    const { buildEnemy } = await import('../chars/enemies');
+    const built = buildEnemy(which)!;
+    engine.scene.add(built.character.group);
+    built.character.anim.setState(q.get('clip') ?? 'idle');
+    update = (dt) => {
+      const sp = q.get('clip') === 'walk' ? 2.5 : q.get('clip') === 'run' ? 5 : 0;
+      built.character.advanceGait(dt, sp);
+      built.character.update(dt, { speed01: 0.4 });
+    };
   } else if (which === 'wolf') {
     const wolf = new Wolf();
     engine.scene.add(wolf.group);
