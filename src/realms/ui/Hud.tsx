@@ -211,7 +211,9 @@ function Compass() {
       >
         <div className="absolute inset-x-0 top-[21px] h-px bg-white/14" />
         {CARDINALS.map(([label, a]) => {
-          const x = place(a - yaw - Math.PI);
+          // a cardinal's bearing relative to the camera; the camera's own
+          // bearing is -yaw, so the offset is a + yaw
+          const x = place(a + yaw);
           if (x === null) return null;
           const major = label.length === 1;
           return (

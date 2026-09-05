@@ -42,7 +42,7 @@ const EXCLUSIONS: Array<[number, number, number]> = [
   [-60, -560, 96],     // Skyfall Keep
   [-60, -430, 34],     // Warden's Gate
   [-66, -170, 30],     // Riftspan corridor
-  [74, 654, 22],       // Watcher's Cliff
+  [74, 676, 30],       // Watcher's Cliff
 ];
 
 export class World {
@@ -139,7 +139,7 @@ export class World {
           const b = new StructureBuilder(this.physics);
           buildAmberfell(b, -140, 250);
           buildColonnade(b, -372, 336);
-          buildShrine(b, 'shrine_cliff', 62, 671, "The Watcher's Cliff");
+          buildShrine(b, 'shrine_cliff', 52, 688, "The Watcher's Cliff");
           buildShrine(b, 'shrine_wood', 40, 402, 'Emberpine Shrine');
           buildShrine(b, 'shrine_lake', 132, 196, 'Mirrowmere Shrine');
           buildShrine(b, 'shrine_rift', BRIDGE_X + 14, BRIDGE_SOUTH_Z + 22, 'Riftward Shrine');

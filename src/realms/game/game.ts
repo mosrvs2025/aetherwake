@@ -224,7 +224,7 @@ export class Game {
           this.physics.build();
           this.player.spawn(START_POS.x, START_POS.z, Math.PI * 0.06);
           this.respawn.copy(this.player.pos);
-          this.companion.spawn(START_POS.x + 2.6, START_POS.z + 1.6, Math.PI * 0.06);
+          this.companion.spawn(START_POS.x + 2.6, START_POS.z + 0.7, Math.PI * 0.06);
           this.cam.reset(this.player.pos, this.player.yaw, -0.05);
           this.engine.bakeEnvironment(this.world.sky.mesh);
           this.world.terrain.primeAround(START_POS.x, START_POS.z, 46);
@@ -500,8 +500,10 @@ export class Game {
     this.cam.cinematicLook.copy(lookFar).lerp(lookNear, smoothstep(9.5, 13.2, t));
     this.cam.cinematicFov = lerp(36, 58, smoothstep(8.5, 13.4, t));
     this.cam.cinematic = 1 - smoothstep(12.6, 13.8, t);
-    this.cam.yaw = Math.PI * 0.06 + Math.PI;
-    this.cam.pitch = -0.06;
+    // The follow arm's yaw matches the character's: the camera sits behind him,
+    // looking the way he faces.
+    this.cam.yaw = this.player.yaw;
+    this.cam.pitch = -0.15;
     this.cam.update(dt, p, { speed01: 0, sprinting: false, strafe: 0, airborne: false, dead: false });
 
     // --- beats ---
@@ -522,7 +524,7 @@ export class Game {
     if (t > 13.6) {
       this.phase = 'playing';
       this.cam.cinematic = 0;
-      this.cam.snapBehind(Math.PI * 0.06 + Math.PI);
+      this.cam.snapBehind(this.player.yaw);
       this.engine.input.enabled = true;
       this.engine.input.requestPointerLock();
       audio.cinematic = false;
@@ -658,7 +660,7 @@ export class Game {
     this.player.stats.stamina = this.player.stats.staminaMax;
     this.player.state = 'idle';
     this.player.spawn(this.respawn.x, this.respawn.z, this.player.yaw);
-    this.companion.spawn(this.respawn.x + 2.4, this.respawn.z + 1.6, this.player.yaw);
+    this.companion.spawn(this.respawn.x + 2.6, this.respawn.z - 1.0, this.player.yaw);
     this.companion.hp = this.companion.hpMax;
     this.companion.state = 'follow';
     this.cam.reset(this.player.pos, this.player.yaw, -0.08);
@@ -1131,15 +1133,19 @@ export class Game {
     const compass: Array<{ id: string; kind: 'quest' | 'landmark' | 'shrine' | 'enemy' | 'npc' | 'boss' | 'loot'; angle: number; distance: number; label?: string; discovered: boolean }> = [];
     const blips: Array<{ id: string; kind: 'quest' | 'landmark' | 'shrine' | 'enemy' | 'npc' | 'boss' | 'loot'; x: number; y: number; label?: string }> = [];
 
+    // Express a world point in camera space. The camera's basis is
+    // forward = (-sin y, -cos y), right = (cos y, -sin y); the minimap's +y
+    // runs down the screen, so my is the negated forward component.
+    const cy = Math.cos(camYaw), sy = Math.sin(camYaw);
     const rel = (x: number, z: number) => {
       const dx = x - p.pos.x, dz = z - p.pos.z;
       const dist = Math.hypot(dx, dz);
-      let ang = Math.atan2(dx, -dz) - (camYaw + Math.PI);
+      const mx = dx * cy - dz * sy;
+      const my = dx * sy + dz * cy;
+      let ang = Math.atan2(mx, -my);
       while (ang > Math.PI) ang -= Math.PI * 2;
       while (ang < -Math.PI) ang += Math.PI * 2;
-      // minimap: rotate into camera space
-      const c = Math.cos(-camYaw), s = Math.sin(-camYaw);
-      return { dist, ang, mx: dx * c - dz * s, my: dx * s + dz * c };
+      return { dist, ang, mx, my };
     };
 
     const marker = this.quests.currentMarker();
@@ -1199,7 +1205,7 @@ export class Game {
   /** Developer shortcut: drop the player somewhere else on the shelf. */
   teleport(x: number, z: number, yaw = Math.PI) {
     this.player.spawn(x, z, yaw);
-    this.companion.spawn(x + 2.4, z + 1.6, yaw);
+    this.companion.spawn(x + 2.6, z - 1.0, yaw);
     this.respawn.copy(this.player.pos);
     this.cam.reset(this.player.pos, yaw, -0.08);
     this.world.terrain.primeAround(x, z, 40);

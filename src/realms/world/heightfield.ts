@@ -13,7 +13,7 @@ import { Noise, clamp01, lerp, smoothstep, segDist, splinePoint } from '../core/
 import { ROAD_MAIN, ROAD_LAKE, ROAD_RUIN } from './roads';
 import {
   LAKE_Y, PADS, RIFT_HALF_WIDTH, RIFT_LIP, RIVER_LOWER, RIVER_UPPER,
-  SHELF_INNER, SHELF_OUTER, riftCenterZ, VOID_Y,
+  SHELF_INNER, SHELF_OUTER, riftCenterZ, VOID_Y, CLIFF,
 } from './atlas';
 
 const nMain = new Noise('realms-shelf-2');
@@ -116,6 +116,29 @@ export function terrainHeight(x: number, z: number): number {
     h += lip * 22;
   }
 
+  // ---- the King's Road: cut a walkable corridor ----
+  // Applied before the authored pads so a hand-placed plateau always wins.
+  if (roadsReady) {
+    const road = roadInfluence(x, z);
+    if (road.w > 0.001) {
+      const jitter = nDetail.fbm2(x * 0.05, z * 0.05, 2) * 0.6;
+      h = lerp(h, road.y + jitter, road.w * 0.94);
+    }
+  }
+
+  // ---- the Watcher's Cliff ----
+  {
+    const dx = x - CLIFF.x;
+    const dz = z - CLIFF.z;
+    // anisotropic: the plateau runs back to the south, and stops dead northward
+    const stretch = dz < 0 ? 3.4 : 0.78;
+    const d = Math.hypot(dx * 1.05, dz * stretch);
+    if (d < CLIFF.radius + CLIFF.southFalloff) {
+      const w = 1 - smoothstep(CLIFF.radius, CLIFF.radius + CLIFF.southFalloff, d);
+      h = lerp(h, CLIFF.y + nDetail.fbm2(x * 0.04, z * 0.04, 2) * 1.2, w * w * (3 - 2 * w) * 0.97);
+    }
+  }
+
   // ---- authored building pads ----
   for (let i = 0; i < PADS.length; i++) {
     const p = PADS[i];
@@ -123,15 +146,6 @@ export function terrainHeight(x: number, z: number): number {
     if (d > p.radius + p.falloff) continue;
     const w = (1 - smoothstep(p.radius, p.radius + p.falloff, d)) * (p.strength ?? 1);
     h = lerp(h, p.y, w);
-  }
-
-  // ---- the King's Road: cut a walkable corridor ----
-  if (roadsReady) {
-    const road = roadInfluence(x, z);
-    if (road.w > 0.001) {
-      const jitter = nDetail.fbm2(x * 0.05, z * 0.05, 2) * 0.6;
-      h = lerp(h, road.y + jitter, road.w * 0.94);
-    }
   }
 
   // ---- the shelf edge: land ends, sky begins ----

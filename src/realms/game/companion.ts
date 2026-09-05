@@ -114,10 +114,12 @@ export class Companion {
       this.commanded = null;
     }
 
-    // --- anchor: behind and to the player's right ---
+    // --- anchor: at the player's right shoulder, a step back ---
     const px = player.pos.x, pz = player.pos.z;
-    const ax = px - Math.sin(player.yaw + 0.9) * 2.6;
-    const az = pz - Math.cos(player.yaw + 0.9) * 2.6;
+    const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+    // right = (cos y, -sin y), back = (sin y, cos y)
+    const ax = px + cy * 2.5 + sy * 0.7;
+    const az = pz - sy * 2.5 + cy * 0.7;
     this.anchor.set(ax, 0, az);
 
     const distToPlayer = Math.hypot(px - this.pos.x, pz - this.pos.z);
@@ -214,9 +216,8 @@ export class Companion {
 
     // --- leash: if he loses you badly, cut to a spot near you ---
     if (distToPlayer > 46) {
-      const a = player.yaw + 0.9;
-      const tx = px - Math.sin(a) * 3.2;
-      const tz = pz - Math.cos(a) * 3.2;
+      const tx = px + cy * 3.0;
+      const tz = pz - sy * 3.0;
       this.pos.set(tx, this.physics.groundHeight(tx, tz, player.pos.y + 3, 1e6), tz);
       this.vel.set(0, 0, 0);
     }

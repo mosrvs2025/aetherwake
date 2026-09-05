@@ -52,12 +52,12 @@ export interface FlatPad {
  * Named places
  * ------------------------------------------------------------------ */
 
-export const START_POS = { x: 74, z: 654 };
+export const START_POS = { x: 74, z: 668 };
 
 export const LANDMARKS: Landmark[] = [
   {
     id: 'watchers_cliff', name: "The Watcher's Cliff", subtitle: 'Where the road begins',
-    x: 74, z: 654, discoverRadius: 40, icon: 'cliff', xp: 0,
+    x: 74, z: 672, discoverRadius: 40, icon: 'cliff', xp: 0,
   },
   {
     id: 'skyfall_keep', name: 'SKYFALL KEEP', subtitle: 'Built into the mountain that never stops falling',
@@ -124,7 +124,6 @@ export const RIVER_LOWER: Array<[number, number]> = [
 
 /** Flattened building sites, keyed to landmarks above. */
 export const PADS: FlatPad[] = [
-  { x: 74, z: 654, radius: 15, falloff: 52, y: 208, strength: 0.92 },   // Watcher's Cliff
   { x: -140, z: 250, radius: 66, falloff: 95, y: 58 },                  // Amberfell
   { x: -372, z: 336, radius: 62, falloff: 90, y: 74 },                  // Colonnade
   { x: -60, z: -430, radius: 46, falloff: 78, y: 170 },                 // Warden's Gate
@@ -132,6 +131,14 @@ export const PADS: FlatPad[] = [
   { x: -66, z: -106, radius: 20, falloff: 26, y: 100 },                 // bridge south head
   { x: -66, z: -242, radius: 20, falloff: 26, y: 100 },                 // bridge north head
 ];
+
+/**
+ * The Watcher's Cliff: a promontory, not a dome. The plateau is generous to the
+ * south and east and breaks away almost immediately to the north, so the very
+ * first thing you see when control is handed over is the drop and the valley
+ * beyond it.
+ */
+export const CLIFF = { x: 74, z: 678, y: 212, radius: 30, southFalloff: 78 };
 
 /** The Rift — a canyon that splits the shelf, crossable only at the Riftspan. */
 export function riftCenterZ(x: number) {
