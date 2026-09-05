@@ -60,6 +60,8 @@ export class World {
   points: InteractPoint[] = [];
   islandTops: Array<{ x: number; y: number; z: number }> = [];
   treeCount = 0;
+  private debugNoGrass = false;
+  private debugNoFlowers = false;
   private structureMats!: Record<MatKey, THREE.MeshStandardMaterial>;
 
   constructor(private physics: Physics) {}
@@ -237,6 +239,7 @@ export class World {
           const grassMat = makeFoliageMaterial({
             color: '#ffffff', map: Textures.grass, alphaTest: 0.34,
             side: THREE.DoubleSide, roughness: 0.9, key: 'grass', windAmp: 0.10,
+            clumpFade: [3.2, 66],
           });
           const density = (x: number, z: number) => {
             const h = terrainHeight(x, z);
@@ -248,6 +251,9 @@ export class World {
             const ashen = smoothstep(-120, -360, z);
             return clamp01((1 - road * 1.25) * (1 - smoothstep(0.26, 0.48, sl)) * (1 - smoothstep(214, 266, h)) * (1 - ashen * 0.7));
           };
+          const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+          this.debugNoGrass = q.has('nograss');
+          this.debugNoFlowers = q.has('noflowers');
           this.grass = new GrassField(grassClumpGeometry(1.0), grassMat, {
             tileSize: 9, radiusTiles: 7, perTile: 150,
             density,
@@ -255,11 +261,12 @@ export class World {
             colorA: new THREE.Color('#6d8a44'),
             colorB: new THREE.Color('#9aa451'),
           });
-          this.group.add(this.grass.mesh);
+          if (!this.debugNoGrass) this.group.add(this.grass.mesh);
 
           const fernMat = makeFoliageMaterial({
             color: '#ffffff', map: Textures.leaf, alphaTest: 0.4,
             side: THREE.DoubleSide, roughness: 0.85, key: 'fern', windAmp: 0.055,
+            clumpFade: [5.0, 58],
           });
           this.flowers = new GrassField(grassClumpGeometry(0.8), fernMat, {
             tileSize: 14, radiusTiles: 4, perTile: 26,
@@ -268,7 +275,7 @@ export class World {
             colorA: new THREE.Color('#4f6a37'),
             colorB: new THREE.Color('#8f7a3e'),
           });
-          this.group.add(this.flowers.mesh);
+          if (!this.debugNoFlowers) this.group.add(this.flowers.mesh);
         },
       },
     ];

@@ -20,6 +20,7 @@ import { limb, tube, roundedBox, plate, at, V } from './geom';
 import { Character } from './character';
 import { makeCharacterMaterials, AETHER, type CharacterMaterials } from './materials';
 import type { SkinSegment } from './rig';
+import { Assets, CANONICAL_BONES } from '../assets/registry';
 
 /* ---------------- armour pieces ---------------- */
 
@@ -118,6 +119,49 @@ export function buildSword(scale = 1, energyLen = 0.86) {
   return { steel: [blade, guard], leather: [grip], metal: [pommel], energy: [fuller, gem] };
 }
 
+/* ---------------- imported models ---------------- */
+
+const IDENTITY_BONE_MAP: Record<string, string> = Object.fromEntries(
+  CANONICAL_BONES.map((n) => [n, n]),
+);
+
+/**
+ * If the manifest supplies a GLB for this id, wrap it so it is driven by the
+ * same rig, animator, IK and sockets as the procedural character.
+ */
+export function buildImportedCharacter(id: string): BuiltCharacter | null {
+  const inst = Assets.instance(id);
+  if (!inst || !inst.skinned) return null;
+  const map = Assets.boneMap(id) ?? IDENTITY_BONE_MAP;
+  const rig = Rig.adopt(inst.skinned.skeleton, map);
+  if (rig.bones.length < 6) {
+    console.warn(`[realms] imported "${id}" mapped only ${rig.bones.length} bones; check boneMap.`);
+    return null;
+  }
+  const materials = makeCharacterMaterials({ key: 'imported-' + id });
+  const character = new Character(inst.skinned, rig, {
+    footIK: rig.hasBone('footL') && rig.hasBone('footR'),
+    scale: inst.entry.scale ?? 1,
+    castShadow: true,
+    attach: inst.root,
+  });
+  registerHumanoidAnims(character.anim, rig, { armed: true });
+  character.anim.setState('idle');
+  character.strideLength = 1.9 * (inst.entry.scale ?? 1);
+
+  const hand = rig.byName.get('gripR') ?? rig.byName.get('handR') ?? rig.bones[0];
+  const socket = new THREE.Group();
+  hand.add(socket);
+  const swordBase = new THREE.Object3D();
+  swordBase.position.set(0, 0.06, 0);
+  socket.add(swordBase);
+  const swordTip = new THREE.Object3D();
+  swordTip.position.set(0, 1.02, 0);
+  socket.add(swordTip);
+
+  return { character, materials, swordTip, swordBase, sword: null };
+}
+
 /* ---------------- the character ---------------- */
 
 export interface WarriorOpts {
@@ -138,6 +182,8 @@ export interface BuiltCharacter {
 }
 
 export function buildWarrior(opts: WarriorOpts = {}): BuiltCharacter {
+  const imported = buildImportedCharacter(opts.key ?? 'player');
+  if (imported) return imported;
   const p = opts.profile ?? PLAYER_PROFILE;
   const s = p.height / 1.86;
   const rig = new Rig(humanoidBones(p));

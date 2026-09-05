@@ -17,6 +17,12 @@ export interface CharacterOpts {
   /** Height of the hip above the root, used to keep IK sane. */
   scale?: number;
   castShadow?: boolean;
+  /**
+   * For imported models: the object that owns the mesh and the skeleton.
+   * When set, that is added to the group instead of re-parenting the bones,
+   * which would tear an imported hierarchy apart.
+   */
+  attach?: THREE.Object3D;
 }
 
 export class Character {
@@ -58,8 +64,12 @@ export class Character {
     this.bones = boneIds(rig);
     this.scale = opts.scale ?? 1;
     this.footIK = opts.footIK ?? false;
-    this.group.add(rig.root);
-    this.group.add(mesh);
+    if (opts.attach) {
+      this.group.add(opts.attach);
+    } else {
+      this.group.add(rig.root);
+      this.group.add(mesh);
+    }
     mesh.castShadow = opts.castShadow ?? true;
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;

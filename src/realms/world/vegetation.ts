@@ -36,6 +36,7 @@ attribute vec2 iPhase;   // x = sway phase, y = stiffness (0 = trunk, 1 = tip)
 varying vec3 vTint;
 uniform float uWindTime;
 uniform float uWindAmp;
+uniform vec2 uClumpFade;   // x = near cutoff, y = far cutoff (0 disables)
 
 vec3 realmsWind(vec3 world, vec3 local, float bend) {
   float t = uWindTime;
@@ -50,6 +51,17 @@ vec3 realmsWind(vec3 world, vec3 local, float bend) {
 
 const WIND_VERT = /* glsl */ `
   vTint = iTint;
+  if (uClumpFade.y > 0.0) {
+    // Ground cover grows right up to the camera, where a 1.5m clump fills the
+    // screen as a smear. Collapse clumps toward their base near the viewer, and
+    // again past the far cutoff so we are not paying fill rate for pixels the
+    // fog has already eaten.
+    vec3 instPos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float dc = distance(instPos, cameraPosition);
+    float near = smoothstep(uClumpFade.x * 0.35, uClumpFade.x, dc);
+    float far = 1.0 - smoothstep(uClumpFade.y * 0.72, uClumpFade.y, dc);
+    transformed *= near * far;
+  }
   {
     vec3 worldNow = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
     float bend = iPhase.y * max(0.0, transformed.y);
@@ -74,6 +86,8 @@ export function makeFoliageMaterial(opts: {
   roughness?: number; side?: THREE.Side; windAmp?: number; key: string;
   /** Multiply by the per-instance tint? Trunks should not take canopy colour. */
   tinted?: boolean;
+  /** [near, far] cutoff in metres for ground cover. Omit to disable. */
+  clumpFade?: [number, number];
 }) {
   const m = new THREE.MeshStandardMaterial({
     color: opts.color,
@@ -85,10 +99,11 @@ export function makeFoliageMaterial(opts: {
     side: opts.side ?? THREE.FrontSide,
   });
   applyAtmosphere(m, {
-    key: opts.key,
+    key: opts.key + (opts.clumpFade ? '-fade' : ''),
     uniforms: {
       uWindTime: atmo.uTime,
       uWindAmp: { value: opts.windAmp ?? 0.055 },
+      uClumpFade: { value: new THREE.Vector2(opts.clumpFade?.[0] ?? 0, opts.clumpFade?.[1] ?? 0) },
     },
     vertexPars: WIND_PARS,
     fragmentPars: 'varying vec3 vTint;',

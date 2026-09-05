@@ -13,7 +13,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { applyAtmosphere } from '../core/atmosphere';
+import { worldMaterial } from '../chars/materials';
 import { Textures } from './textures';
 import { Random, lerp } from '../core/math';
 import { terrainHeight } from './heightfield';
@@ -31,22 +31,21 @@ export interface InteractPoint {
 }
 
 export function makeStructureMaterials() {
-  const mk = (key: string, params: THREE.MeshStandardMaterialParameters) => {
-    const m = new THREE.MeshStandardMaterial(params);
-    applyAtmosphere(m, { key });
-    return m;
-  };
+  const mk = (key: string, params: THREE.MeshStandardMaterialParameters, rim = 0.14) =>
+    worldMaterial(params, key, rim);
   const detail = Textures.detail;
+  // Masonry gets a rim too: a keep silhouetted against a bright sky is
+  // otherwise a black hole in the frame.
   const mats: Record<MatKey, THREE.MeshStandardMaterial> = {
-    stone: mk('st-stone', { color: '#9d998e', roughness: 0.93, metalness: 0.0, map: detail, bumpMap: detail, bumpScale: 0.5 }),
-    stoneDark: mk('st-dark', { color: '#4b4d55', roughness: 0.88, metalness: 0.03, map: detail, bumpMap: detail, bumpScale: 0.7 }),
-    wood: mk('st-wood', { color: '#6a4e35', roughness: 0.9, metalness: 0.0 }),
-    roof: mk('st-roof', { color: '#5a3f39', roughness: 0.86, metalness: 0.02 }),
-    metal: mk('st-metal', { color: '#3c4048', roughness: 0.42, metalness: 0.85 }),
-    rune: mk('st-rune', { color: '#05070b', emissive: AETHER.clone(), emissiveIntensity: 2.6, roughness: 0.4, metalness: 0.2 }),
-    cloth: mk('st-cloth', { color: '#7c2f36', roughness: 0.95, metalness: 0, side: THREE.DoubleSide }),
-    thatch: mk('st-thatch', { color: '#a8874f', roughness: 0.98, metalness: 0 }),
-    gold: mk('st-gold', { color: '#c8a04c', roughness: 0.32, metalness: 0.95 }),
+    stone: mk('st-stone', { color: '#a8a396', roughness: 0.93, metalness: 0.0, map: detail, bumpMap: detail, bumpScale: 0.5 }),
+    stoneDark: mk('st-dark', { color: '#6a6d78', roughness: 0.86, metalness: 0.04, map: detail, bumpMap: detail, bumpScale: 0.7 }, 0.20),
+    wood: mk('st-wood', { color: '#7c5c3e', roughness: 0.9, metalness: 0.0 }),
+    roof: mk('st-roof', { color: '#6d4c42', roughness: 0.86, metalness: 0.02 }),
+    metal: mk('st-metal', { color: '#5b626f', roughness: 0.40, metalness: 0.72 }, 0.24),
+    rune: mk('st-rune', { color: '#05070b', emissive: AETHER.clone(), emissiveIntensity: 2.6, roughness: 0.4, metalness: 0.2 }, 0),
+    cloth: mk('st-cloth', { color: '#8e363d', roughness: 0.95, metalness: 0, side: THREE.DoubleSide }, 0.18),
+    thatch: mk('st-thatch', { color: '#b3924f', roughness: 0.98, metalness: 0 }),
+    gold: mk('st-gold', { color: '#d4ad57', roughness: 0.32, metalness: 0.9 }, 0.22),
   };
   // world-space triplanar-ish UVs would be nicer, but repeating the detail map
   // at a small scale is enough at these distances

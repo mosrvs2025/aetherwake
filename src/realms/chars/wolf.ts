@@ -13,6 +13,7 @@ import { Animator, Pose, Rig, autoSkin, type BoneDef, type SkinSegment } from '.
 import { limb, tube, roundedBox, plate, at, V } from './geom';
 import { mergeParts } from './humanoid';
 import { makeCharacterMaterials, AETHER } from './materials';
+import { Assets } from '../assets/registry';
 import { clamp01, damp, lerp, smoothstep, TAU } from '../core/math';
 
 const S = 1.16;               // overall scale — a big wolf, chest-high on the player
@@ -223,6 +224,22 @@ export class Wolf {
   materials: ReturnType<typeof makeCharacterMaterials>;
 
   constructor() {
+    const imported = Assets.instance('wolf');
+    if (imported?.skinned) {
+      // an authored wolf keeps the procedural gaits, driven by name
+      const map = Assets.boneMap('wolf') ?? Object.fromEntries(WOLF_BONES.map((b) => [b.name, b.name]));
+      const rig = Rig.adopt(imported.skinned.skeleton, map);
+      if (rig.bones.length >= 6) {
+        this.rig = rig;
+        this.mesh = imported.skinned;
+        this.materials = makeCharacterMaterials({ key: 'imported-wolf' });
+        this.group.add(imported.root);
+        this.anim = new Animator(rig);
+        this.registerAnims();
+        this.anim.setState('idle');
+        return;
+      }
+    }
     const rig = new Rig(WOLF_BONES);
     this.rig = rig;
     const { fur, dark, energy } = buildWolfBody(rig);
@@ -257,7 +274,7 @@ export class Wolf {
     this.anim.setState('idle');
   }
 
-  private i(n: string) { return this.rig.idx(n); }
+  private i(n: string) { return this.rig.hasBone(n) ? this.rig.idx(n) : 0; }
 
   private registerAnims() {
     const B = {

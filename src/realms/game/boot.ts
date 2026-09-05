@@ -142,7 +142,7 @@ export async function boot(container: HTMLElement): Promise<GameHandle> {
     };
     window.setTimeout(wait, 250);
   }
-  game.beginLoad();
+  void game.beginLoad();
 
   // developer shortcuts: skip the opening, or start it partway through
   if (params.has('skipintro') || params.has('intro')) {

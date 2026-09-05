@@ -200,7 +200,23 @@ export interface BoneIds {
 }
 
 export function boneIds(rig: Rig): BoneIds {
-  const i = (n: string) => rig.idx(n);
+  // An imported rig may not have every optional bone (cloak chains, clavicles,
+  // toes). Missing names fall back to the nearest parent that does exist, so
+  // the clips still run instead of throwing.
+  const fallback: Record<string, string[]> = {
+    clavL: ['chest'], clavR: ['chest'],
+    toeL: ['footL'], toeR: ['footR'],
+    fingersL: ['handL'], fingersR: ['handR'],
+    gripR: ['handR'],
+    headTop: ['head'],
+    spine: ['hips'], chest: ['spine', 'hips'], neck: ['head', 'chest'],
+    cloak1: ['chest'], cloak2: ['chest'], cloak3: ['chest'], cloak4: ['chest'],
+  };
+  const i = (n: string) => {
+    if (rig.hasBone(n)) return rig.idx(n);
+    for (const alt of fallback[n] ?? []) if (rig.hasBone(alt)) return rig.idx(alt);
+    return 0;
+  };
   return {
     hips: i('hips'), spine: i('spine'), chest: i('chest'), neck: i('neck'), head: i('head'),
     clavL: i('clavL'), clavR: i('clavR'),

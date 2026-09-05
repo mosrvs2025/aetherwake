@@ -73,6 +73,41 @@ export class Rig {
     }
   }
 
+  /**
+   * Adopt an imported skeleton (a GLB from Blender, Mixamo, anywhere) so the
+   * procedural animation, IK and sockets can drive it. `map` translates
+   * canonical REALMS bone names to the names in the imported rig; anything
+   * unmapped or missing is simply left un-animated.
+   */
+  static adopt(skeleton: THREE.Skeleton, map: Record<string, string>): Rig {
+    const rig = Object.create(Rig.prototype) as Rig;
+    rig.bones = [];
+    rig.byName = new Map();
+    rig.index = new Map();
+    rig.bindPos = [];
+    rig.bindQuat = [];
+    rig.bindWorld = [];
+    rig.skeleton = skeleton;
+    const byRealName = new Map<string, THREE.Bone>();
+    for (const b of skeleton.bones) byRealName.set(b.name, b);
+    for (const [canonical, real] of Object.entries(map)) {
+      const bone = byRealName.get(real);
+      if (!bone) continue;
+      rig.index.set(canonical, rig.bones.length);
+      rig.byName.set(canonical, bone);
+      rig.bones.push(bone);
+      rig.bindPos.push(bone.position.clone());
+      rig.bindQuat.push(bone.quaternion.clone());
+      bone.updateWorldMatrix(true, false);
+      rig.bindWorld.push(new THREE.Vector3().setFromMatrixPosition(bone.matrixWorld));
+    }
+    rig.root = rig.byName.get('root') ?? rig.byName.get('hips') ?? skeleton.bones[0];
+    return rig;
+  }
+
+  /** True if this rig has a bone under the given canonical name. */
+  hasBone(name: string) { return this.byName.has(name); }
+
   get(name: string) {
     const b = this.byName.get(name);
     if (!b) throw new Error(`Rig: no bone ${name}`);

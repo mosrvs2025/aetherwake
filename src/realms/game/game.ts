@@ -19,6 +19,7 @@ import { QuestLog } from './quests';
 import { Npc, LootPickup, ShrineLight, type Interactable, type NpcLook } from './entities';
 import { realms } from './state';
 import { audio } from '../core/audio';
+import { Assets } from '../assets/registry';
 import { atmo } from '../core/atmosphere';
 import {
   LANDMARKS, REGIONS, START_POS, LAKE_Y, RARITY_COLOR,
@@ -208,7 +209,13 @@ export class Game {
    * Loading
    * ---------------------------------------------------------------- */
 
-  beginLoad() {
+  async beginLoad() {
+    // Authored art, if any, must be resolved before anything is built so the
+    // builders can prefer it.
+    Assets.attachRenderer(this.engine.renderer);
+    realms.set({ phase: 'loading', loadingLabel: 'Looking for authored art', loadingProgress: 0 });
+    await Assets.init();
+
     this.stageQueue = [
       ...this.world.stages(),
       {
