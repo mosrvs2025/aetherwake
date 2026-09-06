@@ -387,13 +387,25 @@ export class InstancedScatter {
    * shadow LOD: buckets outside the light frustum simply stop casting, which is
    * most of the forest most of the time.
    */
-  updateShadowLod(x: number, z: number, radius: number) {
+  /**
+   * Decide, per bucket, whether it draws at all and whether it casts.
+   *
+   * Frustum culling already skips buckets behind you, but a forest stretching
+   * to the horizon in front of you is millions of triangles the player cannot
+   * resolve. Dropping whole buckets past a draw distance removes the draw call
+   * and the vertex work together, which is the only kind of saving that
+   * actually moves a phone's frame time — fading them out in the shader still
+   * pays for every vertex.
+   */
+  updateVisibility(x: number, z: number, drawDistance: number, shadowRadius: number) {
     for (const m of this.meshes) {
       const s = m.geometry.boundingSphere;
       const cx = m.position.x + (s ? s.center.x : 0);
       const cz = m.position.z + (s ? s.center.z : 0);
       const r = s ? s.radius : 0;
-      m.castShadow = Math.hypot(cx - x, cz - z) - r < radius;
+      const edge = Math.hypot(cx - x, cz - z) - r;
+      m.visible = edge < drawDistance;
+      m.castShadow = m.visible && edge < shadowRadius;
     }
   }
 

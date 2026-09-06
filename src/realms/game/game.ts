@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { Engine } from './engine';
-import { World } from '../world';
+import { World, SCENE_SCALE } from '../world';
 import { Physics } from './physics';
 import { Player } from './player';
 import { FollowCamera } from './camera';
@@ -172,6 +172,15 @@ export class Game {
   constructor(container: HTMLElement) {
     this.engine = new Engine(container);
     this.world = new World(this.physics);
+    // Draw distance and terrain LOD follow the governor; the rings do not.
+    this.engine.onQualityChange = (q) => {
+      const next = SCENE_SCALE[q];
+      this.world.scale = { ...this.world.scale, ...{
+        treeDistance: next.treeDistance,
+        shadowRadius: next.shadowRadius,
+        terrainLod: next.terrainLod,
+      } };
+    };
     this.player = new Player(this.physics);
     this.cam = new FollowCamera(this.engine.camera, this.physics);
     this.companion = new Companion(this.physics, this.fx);
@@ -226,6 +235,11 @@ export class Game {
     Assets.attachRenderer(this.engine.renderer);
     realms.set({ phase: 'loading', loadingLabel: 'Looking for authored art', loadingProgress: 0 });
     await Assets.init();
+
+    // Size the world to the machine before anything is allocated. The grass
+    // and fern rings size their instance buffers once, here; draw distance and
+    // terrain LOD stay live so the governor can keep moving them afterwards.
+    this.world.scale = SCENE_SCALE[this.engine.quality];
 
     this.stageQueue = [
       ...this.world.stages(),

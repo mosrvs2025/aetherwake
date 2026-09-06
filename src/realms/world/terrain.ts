@@ -362,6 +362,14 @@ export class Terrain {
     c.lod = lod;
   }
 
+  /**
+   * Multiplier on the LOD band distances. Below 1 the whole ladder pulls in,
+   * so a chunk drops to a coarser mesh sooner — the cheapest way to hand a
+   * phone back several hundred thousand triangles without changing the shape
+   * of the ground under the player's feet.
+   */
+  lodScale = 1;
+
   update(camera: THREE.Camera, budget = 2) {
     camera.getWorldPosition(this._v);
     const cx = this._v.x, cz = this._v.z;
@@ -369,7 +377,7 @@ export class Terrain {
     for (const c of this.chunks) {
       const d = Math.max(0, Math.hypot(c.centerX - cx, c.centerZ - cz) - CHUNK_SIZE * 0.7);
       let lod = 3;
-      for (let l = 0; l < LOD_DIST.length; l++) { if (d < LOD_DIST[l]) { lod = l; break; } }
+      for (let l = 0; l < LOD_DIST.length; l++) { if (d < LOD_DIST[l] * this.lodScale) { lod = l; break; } }
       c.wanted = lod;
       if (lod !== c.lod) this.queue.push(c);
     }

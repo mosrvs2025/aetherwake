@@ -199,9 +199,17 @@ export class Engine {
     this.sun.shadow.map?.dispose();
     this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     this.handleResize();
+    this.onQualityChange?.(q);
   }
 
   setAdaptive(v: boolean) { this.adaptive = v; }
+
+  /**
+   * Called by the game so a quality change reaches the scene, not just the
+   * renderer. Only the levers that can move mid-flight are re-read here — the
+   * grass ring's instance buffer is allocated once at build time.
+   */
+  onQualityChange: ((q: Quality) => void) | null = null;
 
   add(updater: Updater) { this.updaters.push(updater); }
 
