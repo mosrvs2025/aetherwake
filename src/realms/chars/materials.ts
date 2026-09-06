@@ -76,9 +76,12 @@ export function makeCharacterMaterials(opts: {
 } = {}): CharacterMaterials {
   const key = opts.key ?? 'char';
   const skin = std({
-    color: opts.skin ?? '#b0855f',
-    roughness: 0.74,
+    // Weathered and cool rather than tanned: a warm sun on a saturated skin
+    // tone is what makes a bare head read as orange plastic.
+    color: opts.skin ?? '#84695a',
+    roughness: 0.82,
     metalness: 0.0,
+    envMapIntensity: 0.55,
   }, key + '-skin', 0.10);
   const suit = std({
     color: opts.suit ?? '#454d60',

@@ -14,7 +14,8 @@ import { buildWorldData, type WorldDataResult } from './worlddata';
 import {
   StructureBuilder, makeStructureMaterials, buildAmberfell, buildColonnade,
   buildRiftspan, buildSkyfallKeep, buildWardensGate, buildShrine,
-  buildFloatingIsland, buildRockScatter, buildWatchpost, type InteractPoint, type MatKey,
+  buildFloatingIsland, buildRockScatter, buildWatchpost, buildWayside,
+  type InteractPoint, type MatKey,
 } from './structures';
 import {
   buildVegetation, forestDensity, GrassField, grassClumpGeometry, makeFoliageMaterial,
@@ -62,6 +63,8 @@ export class World {
   motes!: SunMotes;
   critters!: Critters;
   points: InteractPoint[] = [];
+  /** Where the roadside scenes landed — used by dev tooling to frame them. */
+  wayside: Array<{ kind: string; x: number; y: number; z: number }> = [];
   islandTops: Array<{ x: number; y: number; z: number }> = [];
   treeCount = 0;
   private scatters: InstancedScatter[] = [];
@@ -276,9 +279,9 @@ export class World {
             tileSize: 6, radiusTiles: 6, perTile: 520,
             density: grassDensity,
             scale: [0.60, 1.15],
-            colorA: new THREE.Color('#5b7a3c'),
-            colorB: new THREE.Color('#7f9349'),
-            colorDry: new THREE.Color('#a2955a'),
+            colorA: new THREE.Color('#55723c'),
+            colorB: new THREE.Color('#76883f'),
+            colorDry: new THREE.Color('#9a8d55'),
           });
           if (!this.debugNoGrass) this.group.add(this.grass.mesh);
 
@@ -297,6 +300,19 @@ export class World {
             colorDry: new THREE.Color('#9d8b4a'),
           });
           if (!this.debugNoFlowers) this.group.add(this.flowers.mesh);
+        },
+      },
+      {
+        label: 'Leaving traces on the road',
+        run: () => {
+          const b = new StructureBuilder(this.physics);
+          this.wayside = buildWayside(b, {
+            heightAt: (x, z) => terrainHeight(x, z),
+            slopeAt: (x, z) => terrainSlope(x, z),
+            roadAt: (x, z) => this.data.roadAt(x, z),
+            blocked: (x, z) => this.blockedAt(x, z),
+          });
+          this.group.add(b.finish(this.structureMats, 'wayside'));
         },
       },
       {

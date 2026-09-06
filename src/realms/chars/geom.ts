@@ -167,15 +167,30 @@ export function roundedBox(w: number, h: number, d: number, round = 0.35, seg = 
   return geo;
 }
 
-/** Human-ish skull: a sphere squashed and lengthened, with a jaw wedge. */
+/**
+ * A bald head, displaced out of a sphere.
+ *
+ * The features are here because a smooth ovoid reads as an egg at any
+ * resolution, and the character is in every frame of the game. None of it is
+ * modelled as separate parts — it is all displacement on the one sphere, so
+ * the head stays a single closed surface that skins and shades cleanly. What
+ * matters is not detail but *shadow*: a brow ridge with sockets under it, a
+ * nose to break the profile, cheekbones, and a jaw. Those catch the light and
+ * do the work that a texture would otherwise have to fake.
+ */
 export function skull(r = 0.115) {
-  const head = new THREE.SphereGeometry(r, 20, 16);
+  const head = new THREE.SphereGeometry(r, 28, 22);
   head.scale(0.94, 1.12, 1.04);
   const pos = head.attributes.position as THREE.BufferAttribute;
   const v = new THREE.Vector3();
+  // Gaussian bump: 1 at the feature's centre, falling off over `spread`.
+  const bump = (dx: number, dy: number, dz: number, spread: number) =>
+    Math.exp(-(dx * dx + dy * dy + dz * dz) / (2 * spread * spread));
+
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
-    // flatten the back of the skull slightly, push the brow forward
+
+    // ---- cranium ----
     if (v.z < 0) v.z *= 0.92;
     if (v.y < 0) {
       const t = Math.min(1, -v.y / r);
@@ -184,6 +199,46 @@ export function skull(r = 0.115) {
       v.y -= t * r * 0.10;
     }
     if (v.y > r * 0.4 && v.z > 0) v.z += r * 0.04;
+
+    const front = Math.max(0, v.z) / r;
+    const ax = Math.abs(v.x);
+
+    // ---- brow ridge: a bar across the front, heaviest above the eyes ----
+    const brow = bump(ax - r * 0.32, v.y - r * 0.22, 0, r * 0.20) * front;
+    v.z += brow * r * 0.070;
+
+    // ---- eye sockets: pushed in under the brow, which is what makes a
+    // face read at distance — the shadow, not the eye ----
+    const socket = bump(ax - r * 0.32, v.y - r * 0.03, 0, r * 0.16) * front;
+    v.z -= socket * r * 0.10;
+
+    // ---- nose ----
+    const bridge = bump(ax, v.y - r * 0.02, 0, r * 0.13) * front;
+    const tip = bump(ax, v.y + r * 0.20, 0, r * 0.10) * front;
+    v.z += bridge * r * 0.055 + tip * r * 0.105;
+
+    // ---- cheekbones, then the hollow beneath them ----
+    const cheek = bump(ax - r * 0.48, v.y + r * 0.10, 0, r * 0.16) * front;
+    v.z += cheek * r * 0.040;
+    const hollow = bump(ax - r * 0.40, v.y + r * 0.36, 0, r * 0.15) * front;
+    v.z -= hollow * r * 0.045;
+
+    // ---- mouth line and the chin under it ----
+    const mouth = bump(ax * 0.75, v.y + r * 0.50, 0, r * 0.12) * front;
+    v.z -= mouth * r * 0.038;
+    const chin = bump(ax, v.y + r * 0.80, 0, r * 0.18) * front;
+    v.z += chin * r * 0.055;
+
+    // ---- ears ----
+    // Localised in z as well as x, or the bump becomes a ridge around the
+    // whole equator and the head reads as an almond.
+    const ear = bump(ax - r * 0.86, v.y + r * 0.04, v.z + r * 0.06, r * 0.11);
+    v.x += ear * Math.sign(v.x || 1) * r * 0.085;
+
+    // ---- occipital bulge and the nape ----
+    const nape = bump(ax, v.y + r * 0.55, v.z + r * 0.80, r * 0.22);
+    v.z -= nape * r * 0.040;
+
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   head.computeVertexNormals();

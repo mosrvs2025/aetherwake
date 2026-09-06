@@ -85,8 +85,12 @@ export class Engine {
     this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.camera.far = 900;
-    this.sun.shadow.bias = -0.00035;
-    this.sun.shadow.normalBias = 0.35;
+    this.sun.shadow.bias = -0.00055;
+    // In metres, and it must stay under a texel or two. At 4096 over 340m a
+    // texel is 8cm; the old 0.35 was three times the radius of a human head,
+    // so every face sampled the shadow map from somewhere inside its own
+    // skull and came back black. Small objects set this budget, not terrain.
+    this.sun.shadow.normalBias = 0.09;
     // One wide, dense cascade rather than a tight one: 4096 over 340m is
     // 12 texels per metre, which holds up on a tree trunk and still reaches
     // far enough that a castle wall shadows the ground in front of it.

@@ -730,6 +730,213 @@ export function buildFloatingIsland(
  * Scattered rocks
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * Wayside detail
+ * ------------------------------------------------------------------ */
+
+/**
+ * The small traces of other people. A world can be beautifully lit and still
+ * read as a level if nothing in it happened before you arrived: a cart that
+ * broke an axle and was abandoned, a fire someone sat at, a cairn raised over
+ * whoever did not make it. None of these are interactive and none are
+ * explained, which is the point — they are read, not collected.
+ *
+ * All of it merges into the existing structure batches, so the entire set of
+ * roadside scenes costs no additional draw calls.
+ */
+
+/** A cart that lost a wheel, tipped, and was stripped for anything useful. */
+function waysideCart(b: StructureBuilder, x: number, y: number, z: number, ry: number, rng: Random) {
+  const tilt = rng.range(0.16, 0.34);
+  const bedW = 1.5, bedL = 2.6;
+  const bed = roundedBox(bedW, 0.16, bedL, 0.04, 1);
+  b.xf(bed, x, y + 0.52, z, ry, tilt, 0);
+  b.deco('wood', bed);
+  // side boards, one of them sprung
+  for (const sgn of [-1, 1]) {
+    const board = roundedBox(0.09, 0.44, bedL * 0.94, 0.03, 1);
+    const sprung = sgn > 0 ? rng.range(0.0, 0.5) : 0;
+    b.xf(board, x + Math.cos(ry) * sgn * bedW * 0.5, y + 0.74, z - Math.sin(ry) * sgn * bedW * 0.5,
+      ry, tilt, sgn * sprung);
+    b.deco('wood', board);
+  }
+  // shafts, nose-down into the dirt
+  for (const sgn of [-1, 1]) {
+    const shaft = new THREE.CylinderGeometry(0.055, 0.045, 2.1, 5);
+    shaft.rotateX(Math.PI * 0.5);
+    b.xf(shaft, x + Math.cos(ry) * sgn * 0.5 - Math.sin(ry) * 2.0,
+      y + 0.34, z - Math.sin(ry) * sgn * 0.5 - Math.cos(ry) * 2.0, ry, -0.22, 0);
+    b.deco('wood', shaft);
+  }
+  // one wheel still on, one lying flat where it came off
+  const wheel = (wx: number, wy: number, wz: number, flat: boolean) => {
+    const rim = new THREE.TorusGeometry(0.44, 0.055, 5, 14);
+    b.xf(rim, wx, wy, wz, ry + (flat ? 0 : Math.PI * 0.5), flat ? Math.PI * 0.5 : 0, 0);
+    b.deco('wood', rim);
+    for (let i = 0; i < 5; i++) {
+      const spoke = new THREE.CylinderGeometry(0.028, 0.028, 0.84, 4);
+      spoke.rotateZ((i / 5) * Math.PI);
+      b.xf(spoke, wx, wy, wz, ry + (flat ? 0 : Math.PI * 0.5), flat ? Math.PI * 0.5 : 0, 0);
+      b.deco('wood', spoke);
+    }
+  };
+  wheel(x - Math.cos(ry) * 0.82, y + 0.44, z + Math.sin(ry) * 0.82, false);
+  wheel(x + Math.cos(ry) * 1.5 + Math.sin(ry) * 0.4, y + 0.07, z - Math.sin(ry) * 1.5 + Math.cos(ry) * 0.4, true);
+
+  // whatever the scavengers left: a barrel, a crate, a spilled sack
+  if (rng.next() < 0.7) {
+    const barrel = new THREE.CylinderGeometry(0.28, 0.26, 0.62, 8);
+    b.xf(barrel, x + Math.sin(ry) * 1.9, y + 0.28, z + Math.cos(ry) * 1.9, ry, Math.PI * 0.5, 0);
+    b.deco('wood', barrel);
+  }
+  if (rng.next() < 0.55) {
+    b.box('wood', x - Math.sin(ry) * 1.4 + Math.cos(ry) * 1.1, y + 0.22,
+      z - Math.cos(ry) * 1.4 - Math.sin(ry) * 1.1, 0.52, 0.44, 0.52, rng.angle(), { solid: false });
+  }
+}
+
+/** A cold campfire: ring of stones, spent wood, a spit someone left behind. */
+function coldCampfire(b: StructureBuilder, x: number, y: number, z: number, rng: Random) {
+  const stones = 7 + rng.int(0, 3);
+  for (let i = 0; i < stones; i++) {
+    const a = (i / stones) * Math.PI * 2 + rng.range(-0.2, 0.2);
+    const r = rng.range(0.52, 0.66);
+    const s = rng.range(0.10, 0.19);
+    const g = new THREE.DodecahedronGeometry(s, 0);
+    b.xf(g, x + Math.cos(a) * r, y + s * 0.55, z + Math.sin(a) * r, rng.angle(), rng.range(-0.4, 0.4), 0);
+    b.deco('stone', g);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = rng.angle();
+    const log = new THREE.CylinderGeometry(0.045, 0.035, rng.range(0.4, 0.72), 5);
+    log.rotateZ(Math.PI * 0.5);
+    b.xf(log, x + Math.cos(a) * rng.range(0, 0.24), y + 0.05, z + Math.sin(a) * rng.range(0, 0.24), a, 0, 0);
+    b.deco('stoneDark', log);
+  }
+  if (rng.next() < 0.6) {
+    // a spit: two forked uprights and a crossbar, long since picked clean
+    for (const sgn of [-1, 1]) {
+      const post = new THREE.CylinderGeometry(0.035, 0.03, 0.78, 5);
+      b.xf(post, x + sgn * 0.62, y + 0.39, z, 0, 0, sgn * 0.12);
+      b.deco('wood', post);
+    }
+    const bar = new THREE.CylinderGeometry(0.026, 0.026, 1.4, 5);
+    bar.rotateZ(Math.PI * 0.5);
+    b.xf(bar, x, y + 0.76, z, 0, 0, 0);
+    b.deco('wood', bar);
+  }
+}
+
+/** A cairn over a grave, with a blade driven in as the marker. */
+function graveCairn(b: StructureBuilder, x: number, y: number, z: number, rng: Random) {
+  const layers = 4;
+  for (let i = 0; i < layers; i++) {
+    const t = i / layers;
+    const ring = Math.max(1, Math.round(5 * (1 - t)));
+    const r = 0.46 * (1 - t * 0.72);
+    for (let k = 0; k < ring; k++) {
+      const a = (k / ring) * Math.PI * 2 + i * 0.9;
+      const sz = rng.range(0.11, 0.18) * (1 - t * 0.3);
+      const g = new THREE.DodecahedronGeometry(sz, 0);
+      b.xf(g, x + Math.cos(a) * r, y + 0.10 + t * 0.52, z + Math.sin(a) * r,
+        rng.angle(), rng.range(-0.5, 0.5), 0);
+      b.deco('stone', g);
+    }
+  }
+  const blade = roundedBox(0.10, 1.05, 0.022, 0.01, 1);
+  b.xf(blade, x, y + 0.92, z, rng.angle(), rng.range(-0.10, 0.10), rng.range(-0.14, 0.14));
+  b.deco('metal', blade);
+  const guard = roundedBox(0.34, 0.05, 0.05, 0.02, 1);
+  b.xf(guard, x, y + 1.30, z, rng.angle(), 0, 0);
+  b.deco('metal', guard);
+}
+
+/** A waymarker: a leaning post with a plank pointing up the road. */
+function waypost(b: StructureBuilder, x: number, y: number, z: number, ry: number, rng: Random) {
+  const post = new THREE.CylinderGeometry(0.075, 0.09, 1.9, 6);
+  b.xf(post, x, y + 0.92, z, 0, rng.range(-0.09, 0.09), rng.range(-0.07, 0.07));
+  b.deco('wood', post);
+  const plank = roundedBox(0.92, 0.20, 0.05, 0.02, 1);
+  b.xf(plank, x + Math.sin(ry) * 0.30, y + 1.62, z + Math.cos(ry) * 0.30, ry, 0, rng.range(-0.06, 0.06));
+  b.deco('wood', plank);
+}
+
+/** Bones, half-buried. Something died here and nothing buried it. */
+function bonePile(b: StructureBuilder, x: number, y: number, z: number, rng: Random) {
+  const ribs = 5 + rng.int(0, 4);
+  const ry = rng.angle();
+  for (let i = 0; i < ribs; i++) {
+    const t = i / ribs;
+    const rib = new THREE.TorusGeometry(0.28 * (1 - t * 0.35), 0.028, 4, 8, Math.PI * 0.85);
+    b.xf(rib, x + Math.sin(ry) * (t - 0.5) * 1.3, y + 0.06,
+      z + Math.cos(ry) * (t - 0.5) * 1.3, ry + Math.PI * 0.5, rng.range(-0.2, 0.2), Math.PI * 0.5);
+    b.deco('stone', rib);
+  }
+  const spine = new THREE.CylinderGeometry(0.045, 0.035, 1.5, 5);
+  spine.rotateX(Math.PI * 0.5);
+  b.xf(spine, x, y + 0.07, z, ry, 0, 0);
+  b.deco('stone', spine);
+  const skull = new THREE.SphereGeometry(0.16, 6, 5);
+  skull.scale(1, 0.85, 1.35);
+  b.xf(skull, x + Math.sin(ry) * 0.86, y + 0.13, z + Math.cos(ry) * 0.86, ry, rng.range(-0.3, 0.3), 0);
+  b.deco('stone', skull);
+}
+
+export interface WaysideDeps {
+  /** Height of the ground at a point. */
+  heightAt: (x: number, z: number) => number;
+  /** Slope, 0 = flat. Scenes want ground someone could have stood on. */
+  slopeAt: (x: number, z: number) => number;
+  /** How close to a road, 0..1. Most of these happened beside one. */
+  roadAt: (x: number, z: number) => number;
+  /** Anything already occupying the ground. */
+  blocked: (x: number, z: number) => number;
+}
+
+/**
+ * Place the whole set along the road network. Scenes are found by rejection
+ * sampling near the roads rather than authored by hand, so the road can move
+ * without dragging a list of coordinates behind it.
+ */
+export function buildWayside(b: StructureBuilder, deps: WaysideDeps, seed = 'realms-wayside') {
+  const scenes: Array<{ kind: string; x: number; y: number; z: number }> = [];
+  const rng = new Random(seed);
+  const kinds: Array<'cart' | 'fire' | 'grave' | 'post' | 'bones'> = [];
+  for (let i = 0; i < 7; i++) kinds.push('fire');
+  for (let i = 0; i < 5; i++) kinds.push('cart');
+  for (let i = 0; i < 6; i++) kinds.push('grave');
+  for (let i = 0; i < 8; i++) kinds.push('post');
+  for (let i = 0; i < 6; i++) kinds.push('bones');
+
+  let placed = 0;
+  const used: Array<[number, number]> = [];
+  for (let attempt = 0; attempt < 26000 && placed < kinds.length; attempt++) {
+    const x = rng.range(-820, 820);
+    const z = rng.range(-820, 820);
+    const road = deps.roadAt(x, z);
+    // beside the road, not on it — a wagon in the ruts would be in the way
+    if (road < 0.10 || road > 0.60) continue;
+    if (deps.slopeAt(x, z) > 0.24) continue;
+    if (deps.blocked(x, z) > 0.5) continue;
+    const y = deps.heightAt(x, z);
+    if (y < 6 || y > 250) continue;
+    if (used.some(([ux, uz]) => (ux - x) ** 2 + (uz - z) ** 2 < 62 * 62)) continue;
+    used.push([x, z]);
+
+    const ry = rng.angle();
+    scenes.push({ kind: kinds[placed], x, y, z });
+    switch (kinds[placed]) {
+      case 'cart': waysideCart(b, x, y, z, ry, rng); break;
+      case 'fire': coldCampfire(b, x, y, z, rng); break;
+      case 'grave': graveCairn(b, x, y, z, rng); break;
+      case 'post': waypost(b, x, y, z, ry, rng); break;
+      case 'bones': bonePile(b, x, y, z, rng); break;
+    }
+    placed++;
+  }
+  return scenes;
+}
+
 export function buildRockScatter(count: number, accept: (x: number, z: number) => number) {
   const rng = new Random('rocks');
   const protos: THREE.BufferGeometry[] = [];
