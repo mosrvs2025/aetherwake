@@ -24,9 +24,24 @@ import { Assets, CANONICAL_BONES } from '../assets/registry';
 
 /* ---------------- armour pieces ---------------- */
 
-function shoulderShell(x: number, y: number, z: number, r: number, tilt: number, flip: number) {
-  const g = new THREE.SphereGeometry(r, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.62);
-  g.scale(1.18, 0.86, 1.02);
+/**
+ * One lame of a pauldron: a shallow, flared shell with a hard lower edge.
+ *
+ * A hemisphere reads as a balloon on a shoulder no matter what colour it is —
+ * it has no edge for light to break on and no direction. Real plate is a stack
+ * of shallow bands, each flaring a little wider than the one above and ending
+ * in a folded lip. Flattening the dome and giving it that lip is most of the
+ * difference between armour and a pool float.
+ */
+function shoulderLame(
+  x: number, y: number, z: number, r: number, tilt: number, flip: number,
+  opts: { flare?: number; drop?: number } = {},
+) {
+  const flare = opts.flare ?? 1.0;
+  // A shallow cap rather than most of a sphere: the band covers the top of
+  // the shoulder and stops, instead of wrapping it.
+  const g = new THREE.SphereGeometry(r, 20, 9, 0, Math.PI * 2, 0, Math.PI * 0.56);
+  g.scale(1.04 * flare, 0.74, 1.00 * flare);
   const m = new THREE.Matrix4().compose(
     new THREE.Vector3(x, y, z),
     new THREE.Quaternion().setFromEuler(new THREE.Euler(0.10, 0, flip * tilt)),
@@ -34,6 +49,18 @@ function shoulderShell(x: number, y: number, z: number, r: number, tilt: number,
   );
   g.applyMatrix4(m);
   return g;
+}
+
+/** The folded lip at the bottom of a lame — a thin band that catches light. */
+function lameRim(x: number, y: number, z: number, r: number, tilt: number, flip: number, flare = 1.0) {
+  const band = ring(0, 0, 0, r * 0.98, r * 0.075, 1.04 * flare, 1.00 * flare, 20);
+  const m = new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0.10, 0, flip * tilt)),
+    new THREE.Vector3(1, 1, 1),
+  );
+  band.applyMatrix4(m);
+  return band;
 }
 
 function ring(cx: number, cy: number, cz: number, radius: number, thickness: number, squashX = 1, squashZ = 1, segs = 24) {
@@ -212,29 +239,42 @@ export function buildWarrior(opts: WarriorOpts = {}): BuiltCharacter {
     squashZ: [0.83, 0.80, 0.82, 0.82, 0.88],
     capStart: false, capEnd: false,
   }));
-  // sternum ridge + collar
-  armorParts.push(at(roundedBox(0.055 * s, 0.30 * s, 0.05 * s, 0.5, 2), 0, chest.y + 0.01 * s, chest.z + 0.150 * s, -0.05, 0, 0));
+  // Sternum ridge + collar. The rig faces -Z — the toes sit at z(-0.145) and
+  // the cloak bones hang at z(+0.07) and back — so the chest is the negative
+  // side. These pieces were authored on the positive side, which put the
+  // sternum ridge, the aether sigil and the belt buckle between the Warden's
+  // shoulder blades.
+  armorParts.push(at(roundedBox(0.055 * s, 0.30 * s, 0.05 * s, 0.5, 2), 0, chest.y + 0.01 * s, chest.z - 0.150 * s, 0.05, 0, 0));
   armorParts.push(ring(0, neck.y - 0.02 * s, 0, 0.105 * s, 0.028 * s, 1.05, 0.92, 20));
 
   // chest sigil: a ring of aether with a core
-  energyParts.push(ring(0, chest.y + 0.055 * s, chest.z + 0.163 * s, 0.052 * s, 0.010 * s, 1, 0.35, 20));
+  energyParts.push(ring(0, chest.y + 0.055 * s, chest.z - 0.163 * s, 0.052 * s, 0.010 * s, 1, 0.35, 20));
   const core = new THREE.SphereGeometry(0.024 * s, 12, 10);
   core.scale(1, 1, 0.45);
-  core.translate(0, chest.y + 0.055 * s, chest.z + 0.166 * s);
+  core.translate(0, chest.y + 0.055 * s, chest.z - 0.166 * s);
   energyParts.push(core);
 
-  // pauldrons: two lames per side, plus an aether rim
+  // pauldrons: three lames per side, each flaring wider and ending in a lip
   for (const side of [1, -1] as const) {
     const sh = w('upperArmL'); const x = sh.x * side;
-    armorParts.push(shoulderShell(x * 1.02, sh.y + 0.030 * s, sh.z, 0.108 * s, 0.30, side));
-    armorParts.push(shoulderShell(x * 1.10, sh.y - 0.048 * s, sh.z, 0.096 * s, 0.42, side));
+    const LAMES: Array<[number, number, number, number]> = [
+      // xScale, yOffset, radius, tilt
+      [1.00, 0.036, 0.100, 0.22],
+      [1.05, -0.026, 0.104, 0.34],
+    ];
+    for (let i = 0; i < LAMES.length; i++) {
+      const [xs, dy, lr, lt] = LAMES[i];
+      const flare = 0.97 + i * 0.05;
+      armorParts.push(shoulderLame(x * xs, sh.y + dy * s, sh.z, lr * s, lt, side, { flare }));
+      armorParts.push(lameRim(x * xs, sh.y + (dy - 0.042) * s, sh.z, lr * s, lt, side, flare));
+    }
     const rimPts: THREE.Vector3[] = [];
     for (let i = 0; i <= 16; i++) {
       const a = Math.PI * (0.06 + 0.88 * (i / 16));
       rimPts.push(V(
-        x * 1.10 + Math.cos(a) * 0.010 * s * side,
-        sh.y - 0.048 * s - Math.abs(Math.sin(a)) * 0.014 * s,
-        Math.sin(a - Math.PI / 2) * 0.098 * s,
+        x * 1.05 + Math.cos(a) * 0.010 * s * side,
+        sh.y - 0.070 * s - Math.abs(Math.sin(a)) * 0.012 * s,
+        Math.sin(a - Math.PI / 2) * 0.100 * s,
       ));
     }
     energyParts.push(energyLine(rimPts, 0.0058 * s));
@@ -272,7 +312,7 @@ export function buildWarrior(opts: WarriorOpts = {}): BuiltCharacter {
 
   // belt + tassets
   leatherParts.push(ring(0, hips.y + 0.015 * s, 0, 0.150 * s, 0.032 * s, 1.20, 0.86, 22));
-  energyParts.push(at(roundedBox(0.062 * s, 0.052 * s, 0.028 * s, 0.4, 1), 0, hips.y + 0.015 * s, 0.140 * s));
+  energyParts.push(at(roundedBox(0.062 * s, 0.052 * s, 0.028 * s, 0.4, 1), 0, hips.y + 0.015 * s, -0.140 * s));
   for (const side of [1, -1] as const) {
     for (const off of [0.30, 0.72]) {
       const ang = side * off;

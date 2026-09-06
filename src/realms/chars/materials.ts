@@ -84,22 +84,27 @@ export function makeCharacterMaterials(opts: {
     envMapIntensity: 0.55,
   }, key + '-skin', 0.10);
   const suit = std({
-    color: opts.suit ?? '#454d60',
-    roughness: 0.88,
+    color: opts.suit ?? '#2a2f3a',
+    roughness: 0.90,
     metalness: 0.04,
   }, key + '-suit', 0.15);
+  // Blackened iron, not chrome. High metalness with a low roughness and a
+  // strong environment made the plate mirror the sky, which on a blue-grey
+  // base is what turned the pauldrons into glossy plastic. Dark fantasy plate
+  // reads as *forged*: nearly black, matte across the faces, with the sheen
+  // living on the edges where a hammer would have polished it.
   const armor = std({
-    color: opts.armor ?? '#6b7789',
-    roughness: opts.roughness ?? 0.42,
-    metalness: opts.metalness ?? 0.38,
-    envMapIntensity: 1.5,
-  }, key + '-armor', 0.22);
+    color: opts.armor ?? '#3c424c',
+    roughness: opts.roughness ?? 0.58,
+    metalness: opts.metalness ?? 0.72,
+    envMapIntensity: 0.65,
+  }, key + '-armor', 0.30);
   const cloth = std({
-    color: opts.cloth ?? '#2b3348',
-    roughness: 0.93,
+    color: opts.cloth ?? '#1c2130',
+    roughness: 0.95,
     metalness: 0.0,
     side: THREE.DoubleSide,
-  }, key + '-cloth', 0.13);
+  }, key + '-cloth', 0.18);
   const leather = std({
     color: opts.leather ?? '#3a2c22',
     roughness: 0.72,
