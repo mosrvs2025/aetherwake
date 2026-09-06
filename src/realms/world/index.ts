@@ -17,9 +17,10 @@ import {
   buildFloatingIsland, buildRockScatter, buildWatchpost, type InteractPoint, type MatKey,
 } from './structures';
 import {
-  buildVegetation, GrassField, grassClumpGeometry, makeFoliageMaterial,
+  buildVegetation, forestDensity, GrassField, grassClumpGeometry, makeFoliageMaterial,
   InstancedScatter, type ScatterInstance,
 } from './vegetation';
+import { Birds, SunMotes, Critters, type FlockSpec } from './wildlife';
 import { Textures } from './textures';
 import { applyAtmosphere, atmo } from '../core/atmosphere';
 import {
@@ -57,6 +58,9 @@ export class World {
   data!: WorldDataResult;
   grass!: GrassField;
   flowers!: GrassField;
+  birds!: Birds;
+  motes!: SunMotes;
+  critters!: Critters;
   points: InteractPoint[] = [];
   islandTops: Array<{ x: number; y: number; z: number }> = [];
   treeCount = 0;
@@ -241,9 +245,10 @@ export class World {
         label: 'Letting the grass in',
         run: () => {
           const grassMat = makeFoliageMaterial({
-            color: '#ffffff', map: Textures.grass, alphaTest: 0.28,
+            color: '#ffffff', map: Textures.grass, alphaTest: 0.28, alphaOnly: true,
+            vertexColors: true,
             side: THREE.DoubleSide, roughness: 0.9, key: 'grass', windAmp: 0.10,
-            clumpFade: [2.4, 54],
+            clumpFade: [2.6, 46], normalUp: 0.88, translucency: 0.55,
           });
           const density = (x: number, z: number) => {
             const h = terrainHeight(x, z);
@@ -255,31 +260,68 @@ export class World {
             const ashen = smoothstep(-120, -360, z);
             return clamp01((1 - road * 1.25) * (1 - smoothstep(0.26, 0.48, sl)) * (1 - smoothstep(214, 266, h)) * (1 - ashen * 0.7));
           };
+          // Under a closed canopy the ground is needles and shade, not meadow —
+          // and thinning it there is also where the instance budget is best spent.
+          const vegDeps = {
+            roadAt: (x: number, z: number) => this.data.roadAt(x, z),
+            aoAt: (x: number, z: number) => this.data.aoAt(x, z),
+            blocked: (x: number, z: number) => this.blockedAt(x, z),
+          };
+          const grassDensity = (x: number, z: number) =>
+            density(x, z) * (1 - forestDensity(x, z, vegDeps) * 0.62);
           const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
           this.debugNoGrass = q.has('nograss');
           this.debugNoFlowers = q.has('noflowers');
-          this.grass = new GrassField(grassClumpGeometry(0.62, 0.78), grassMat, {
-            tileSize: 8, radiusTiles: 6, perTile: 300,
-            density,
-            scale: [0.5, 1.05],
-            colorA: new THREE.Color('#6d8a44'),
-            colorB: new THREE.Color('#9aa451'),
+          this.grass = new GrassField(grassClumpGeometry(0.52, 0.40), grassMat, {
+            tileSize: 6, radiusTiles: 6, perTile: 520,
+            density: grassDensity,
+            scale: [0.60, 1.15],
+            colorA: new THREE.Color('#5b7a3c'),
+            colorB: new THREE.Color('#7f9349'),
+            colorDry: new THREE.Color('#a2955a'),
           });
           if (!this.debugNoGrass) this.group.add(this.grass.mesh);
 
           const fernMat = makeFoliageMaterial({
-            color: '#ffffff', map: Textures.leaf, alphaTest: 0.4,
+            color: '#ffffff', map: Textures.leaf, alphaTest: 0.46,
+            vertexColors: true,
             side: THREE.DoubleSide, roughness: 0.85, key: 'fern', windAmp: 0.055,
-            clumpFade: [5.0, 58],
+            clumpFade: [5.0, 58], normalUp: 0.80, translucency: 0.50,
           });
-          this.flowers = new GrassField(grassClumpGeometry(0.95, 2.0), fernMat, {
-            tileSize: 14, radiusTiles: 4, perTile: 24,
+          this.flowers = new GrassField(grassClumpGeometry(0.80, 1.05), fernMat, {
+            tileSize: 14, radiusTiles: 4, perTile: 34,
             density: (x, z) => density(x, z) * 0.5,
             scale: [0.5, 1.05],
-            colorA: new THREE.Color('#4f6a37'),
-            colorB: new THREE.Color('#8f7a3e'),
+            colorA: new THREE.Color('#425c2f'),
+            colorB: new THREE.Color('#8a763c'),
+            colorDry: new THREE.Color('#9d8b4a'),
           });
           if (!this.debugNoFlowers) this.group.add(this.flowers.mesh);
+        },
+      },
+      {
+        label: 'Waking the valley',
+        run: () => {
+          // Thermals over the places the player will actually be looking:
+          // the opening vista, the lake, the wood, and the air below the Keep.
+          const flocks: FlockSpec[] = [
+            { x: 90, z: 470, altitude: 96, radius: 74, count: 11, scale: 2.4, speed: 1 },
+            { x: -120, z: 250, altitude: 62, radius: 46, count: 8, scale: 1.9, speed: -1 },
+            { x: 210, z: 60, altitude: 118, radius: 96, count: 9, scale: 3.0, speed: 1 },
+            { x: -80, z: -300, altitude: 150, radius: 120, count: 10, scale: 3.6, speed: -1 },
+            { x: 40, z: 640, altitude: 34, radius: 26, count: 5, scale: 1.5, speed: 1 },
+          ];
+          this.birds = new Birds(flocks);
+          this.group.add(this.birds.mesh);
+
+          this.motes = new SunMotes(700, 46);
+          this.group.add(this.motes.mesh);
+
+          const critterMat = applyAtmosphere(new THREE.MeshStandardMaterial({
+            color: '#9a8166', roughness: 0.95, metalness: 0,
+          }), { key: 'critter' });
+          this.critters = new Critters(critterMat, 10, 70);
+          this.group.add(this.critters.mesh);
         },
       },
     ];
@@ -296,6 +338,12 @@ export class World {
     if (this.terrain) this.terrain.update(camera);
     if (this.grass) this.grass.update(playerX, playerZ, 5);
     if (this.flowers) this.flowers.update(playerX, playerZ, 3);
+    if (this.motes) this.motes.update(camera);
+  }
+
+  /** Anything that needs a real timestep rather than a camera position. */
+  updateLife(dt: number, playerX: number, playerZ: number) {
+    if (this.critters) this.critters.update(dt, playerX, playerZ);
   }
 
   landmarkAt(id: string) { return LANDMARKS.find((l) => l.id === id); }
@@ -306,6 +354,9 @@ export class World {
     this.falls?.dispose();
     this.grass?.dispose();
     this.flowers?.dispose();
+    this.birds?.dispose();
+    this.motes?.dispose();
+    this.critters?.dispose();
     this.data?.texture.dispose();
     this.data?.heightTexture.dispose();
   }

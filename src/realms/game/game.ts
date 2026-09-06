@@ -439,6 +439,7 @@ export class Game {
 
   private frame(dt: number) {
     this.world.update(this.engine.camera, this.player.pos.x, this.player.pos.z);
+    this.world.updateLife(dt, this.player.pos.x, this.player.pos.z);
 
     switch (this.phase) {
       case 'title': this.frameTitle(dt); break;

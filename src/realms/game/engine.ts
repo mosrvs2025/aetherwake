@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { PostFX, type Quality } from '../core/postfx';
 import { atmo } from '../core/atmosphere';
 import { Input } from '../core/input';
+import { Textures } from '../world/textures';
 
 export interface FrameCtx {
   dt: number;
@@ -71,19 +72,25 @@ export class Engine {
     // the real per-frame cost rather than whatever the last pass did.
     this.renderer.info.autoReset = false;
 
+    // the cloud-shadow mask every material samples; bound before first compile
+    atmo.uCloudTex.value = Textures.detail;
+
     this.camera = new THREE.PerspectiveCamera(58, 1, 0.6, 22000);
     this.camera.position.set(0, 200, 0);
 
     // ---- lights ----
     this.sun = new THREE.DirectionalLight(0xffe9c8, 2.85);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 720;
-    this.sun.shadow.bias = -0.0007;
-    this.sun.shadow.normalBias = 0.6;
+    this.sun.shadow.camera.far = 900;
+    this.sun.shadow.bias = -0.00035;
+    this.sun.shadow.normalBias = 0.35;
+    // One wide, dense cascade rather than a tight one: 4096 over 340m is
+    // 12 texels per metre, which holds up on a tree trunk and still reaches
+    // far enough that a castle wall shadows the ground in front of it.
     const sc = this.sun.shadow.camera as THREE.OrthographicCamera;
-    sc.left = -110; sc.right = 110; sc.top = 110; sc.bottom = -110;
+    sc.left = -170; sc.right = 170; sc.top = 170; sc.bottom = -170;
     sc.updateProjectionMatrix();
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
@@ -150,19 +157,19 @@ export class Engine {
     switch (q) {
       case 'low':
         this.renderScale = 0.7;
-        this.sun.shadow.mapSize.set(768, 768);
+        this.sun.shadow.mapSize.set(1024, 1024);
         break;
       case 'medium':
         this.renderScale = 0.88;
-        this.sun.shadow.mapSize.set(1280, 1280);
+        this.sun.shadow.mapSize.set(2048, 2048);
         break;
       case 'high':
         this.renderScale = 1;
-        this.sun.shadow.mapSize.set(2048, 2048);
+        this.sun.shadow.mapSize.set(4096, 4096);
         break;
       case 'ultra':
         this.renderScale = 1;
-        this.sun.shadow.mapSize.set(3072, 3072);
+        this.sun.shadow.mapSize.set(4096, 4096);
         break;
     }
     this.sun.shadow.map?.dispose();
@@ -180,8 +187,13 @@ export class Engine {
     this.fill.position.set(focus.x - d.x * 200, focus.y + 140, focus.z - d.z * 200);
     this.fill.target.position.copy(focus);
     this.fill.target.updateMatrixWorld();
-    this.sun.position.set(focus.x + d.x * 320, focus.y + d.y * 320, focus.z + d.z * 320);
-    this.sun.target.position.copy(focus);
+    // Snap the light to shadow-texel increments so the shadow does not crawl
+    // and shimmer as the player walks — the classic giveaway of a moving cascade.
+    const texel = 340 / this.sun.shadow.mapSize.x;
+    const sx = Math.round(focus.x / texel) * texel;
+    const sz = Math.round(focus.z / texel) * texel;
+    this.sun.position.set(sx + d.x * 420, focus.y + d.y * 420, sz + d.z * 420);
+    this.sun.target.position.set(sx, focus.y, sz);
     this.sun.target.updateMatrixWorld();
   }
 

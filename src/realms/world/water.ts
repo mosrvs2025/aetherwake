@@ -23,7 +23,6 @@ const WATER_PARS = /* glsl */ `
 uniform sampler2D uDetail;
 uniform sampler2D uHeight;
 uniform float uWorldExtent;
-uniform float uTime;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform vec3 uFoam;
@@ -114,6 +113,8 @@ const WATER_FRAG = /* glsl */ `
 
   gl_FragColor = vec4(col, mix(0.86, 1.0, clamp(depth * 0.6, 0.0, 1.0)));
   gl_FragColor.a = max(gl_FragColor.a, foam);
+  // the same clouds that shade the land shade the lake
+  gl_FragColor.rgb = realmsCloudLight(gl_FragColor.rgb, wp);
   gl_FragColor.rgb = realmsApplyFog(gl_FragColor.rgb, cameraPosition, wp);
 `;
 

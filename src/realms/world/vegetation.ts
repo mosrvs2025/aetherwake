@@ -20,7 +20,10 @@
 import * as THREE from 'three';
 import { applyAtmosphere, atmo } from '../core/atmosphere';
 import { Textures } from './textures';
-import { Random, clamp01, lerp, smoothstep } from '../core/math';
+import { Noise, Random, clamp01, lerp, smoothstep } from '../core/math';
+
+/** Shared with the terrain shader's region band so tints agree on the ground. */
+const GRASS_BAND = new Noise('realms-grass-band');
 import { terrainHeight, terrainSlope } from './heightfield';
 import { LAKE_Y } from './atlas';
 import { tube, limb, V } from '../chars/geom';
@@ -36,16 +39,28 @@ attribute vec2 iPhase;   // x = sway phase, y = stiffness (0 = trunk, 1 = tip)
 varying vec3 vTint;
 uniform float uWindTime;
 uniform float uWindAmp;
+uniform vec2 uWindHeading;
 uniform vec2 uClumpFade;   // x = near cutoff, y = far cutoff (0 disables)
 
+/**
+ * Wind is two things at once: a fast local flutter, and a slow gust front
+ * travelling downwind across the whole landscape. The front is what makes a
+ * meadow read as weather rather than as a shader — you watch it arrive.
+ * It shares its direction and cadence with the cloud shadows overhead.
+ */
 vec3 realmsWind(vec3 world, vec3 local, float bend) {
   float t = uWindTime;
-  vec2 dir = normalize(vec2(0.82, 0.57));
-  float gust = 0.62 + 0.38 * sin(t * 0.23 + dot(world.xz, dir) * 0.010);
+  vec2 dir = uWindHeading;
+  float phase = dot(world.xz, dir) * 0.0075 - t * 0.62;
+  float front = 0.55 + 0.45 * sin(phase) * (0.6 + 0.4 * sin(phase * 0.37 + 1.7));
+  float gust = 0.34 + front * 0.95;
   float w1 = sin(t * 1.55 + world.x * 0.16 + world.z * 0.11);
   float w2 = sin(t * 3.10 + world.x * 0.42 - world.z * 0.31) * 0.4;
   float amp = bend * uWindAmp * gust;
-  return vec3(dir.x * (w1 + w2) * amp, -abs(w1) * amp * 0.14, dir.y * (w1 + w2) * amp);
+  // the whole clump also leans downwind under a strong gust, not just flutters
+  float lean = bend * uWindAmp * front * 1.15;
+  return vec3(dir.x * ((w1 + w2) * amp + lean), -abs(w1) * amp * 0.14 - lean * 0.10,
+              dir.y * ((w1 + w2) * amp + lean));
 }
 `;
 
@@ -81,6 +96,32 @@ const TINT_FRAG = /* glsl */ `
   diffuseColor.rgb *= vTint;
 `;
 
+/**
+ * Foliage shading needs two departures from the standard model.
+ *
+ * Cards are flat, so their geometric normal points wherever the card faces —
+ * and under DoubleSide three.js flips it to face the viewer. Shading a meadow
+ * that way means every blade is lit as though it were a wall facing the
+ * camera: the sun never reaches it and the whole field goes black. Real grass
+ * reads as a soft, roughly upward-facing surface, so we bend the normal toward
+ * world up and keep only a trace of the card's own orientation for variation.
+ *
+ * And leaves are thin: light goes *through* them. A cheap back-lit term makes
+ * grass and canopies glow when you look toward the sun, which is most of what
+ * sells vegetation as organic rather than as geometry.
+ */
+const NORMAL_UP_FRAG = /* glsl */ `
+  normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), uNormalUp));
+`;
+
+const TRANSLUCENCY_FRAG = /* glsl */ `
+  {
+    vec3 vdir = normalize(vWorldPos_atmo - cameraPosition);
+    float back = max(0.0, dot(vdir, uSunDir));
+    gl_FragColor.rgb += realmsAlbedo * uSunColor * (pow(back, 3.5) * uTranslucency);
+  }
+`;
+
 export function makeFoliageMaterial(opts: {
   color: THREE.ColorRepresentation; map?: THREE.Texture; alphaTest?: number;
   roughness?: number; side?: THREE.Side; windAmp?: number; key: string;
@@ -88,10 +129,21 @@ export function makeFoliageMaterial(opts: {
   tinted?: boolean;
   /** [near, far] cutoff in metres for ground cover. Omit to disable. */
   clumpFade?: [number, number];
+  /** Use the texture for cutout only, taking colour entirely from the tint. */
+  alphaOnly?: boolean;
+  /** Read the baked per-vertex occlusion written by grassClumpGeometry. */
+  vertexColors?: boolean;
+  /** How far to bend the shading normal toward world up. 0 = card normal. */
+  normalUp?: number;
+  /** Strength of the back-lit transmission through thin foliage. */
+  translucency?: number;
 }) {
+  const normalUp = opts.normalUp ?? 0;
+  const translucency = opts.translucency ?? 0;
   const m = new THREE.MeshStandardMaterial({
     color: opts.color,
-    ...(opts.map ? { map: opts.map, alphaMap: opts.map } : {}),
+    ...(opts.map ? (opts.alphaOnly ? { alphaMap: opts.map } : { map: opts.map, alphaMap: opts.map }) : {}),
+    vertexColors: opts.vertexColors ?? false,
     alphaTest: opts.alphaTest ?? 0,
     transparent: false,
     roughness: opts.roughness ?? 0.86,
@@ -99,18 +151,30 @@ export function makeFoliageMaterial(opts: {
     side: opts.side ?? THREE.FrontSide,
   });
   applyAtmosphere(m, {
-    key: opts.key + (opts.clumpFade ? '-fade' : ''),
+    key: `${opts.key}${opts.clumpFade ? '-fade' : ''}-n${normalUp}-t${translucency}`
+      + `${opts.alphaOnly ? '-a' : ''}${opts.vertexColors ? '-vc' : ''}`,
     uniforms: {
       uWindTime: atmo.uTime,
       uWindAmp: { value: opts.windAmp ?? 0.055 },
+      uWindHeading: atmo.uWindDir,
       uClumpFade: { value: new THREE.Vector2(opts.clumpFade?.[0] ?? 0, opts.clumpFade?.[1] ?? 0) },
+      uNormalUp: { value: normalUp },
+      uTranslucency: { value: translucency },
     },
     vertexPars: WIND_PARS,
-    fragmentPars: 'varying vec3 vTint;',
+    fragmentPars: 'varying vec3 vTint;\nuniform float uNormalUp;\nuniform float uTranslucency;',
     vertexReplace: [['#include <begin_vertex>', `#include <begin_vertex>\n${WIND_VERT}`]],
-    fragmentReplace: opts.tinted === false
-      ? []
-      : [['#include <color_fragment>', `#include <color_fragment>\n${TINT_FRAG}`]],
+    fragmentBody: translucency > 0 ? TRANSLUCENCY_FRAG : '',
+    fragmentReplace: [
+      // Capture albedo after tinting: the transmission term needs the leaf's own
+      // colour, not the shaded result, or backlit grass would glow grey.
+      ['#include <color_fragment>',
+        `#include <color_fragment>\n${opts.tinted === false ? '' : TINT_FRAG}\nvec3 realmsAlbedo = diffuseColor.rgb;`],
+      ...(normalUp > 0
+        ? [['#include <normal_fragment_begin>',
+            `#include <normal_fragment_begin>\n${NORMAL_UP_FRAG}`] as [string, string]]
+        : []),
+    ],
   });
   return m;
 }
@@ -351,6 +415,8 @@ export interface GrassOptions {
   scale: [number, number];
   colorA: THREE.Color;
   colorB: THREE.Color;
+  /** Sun-bleached variant, used on the same large-scale bands as the terrain. */
+  colorDry?: THREE.Color;
 }
 
 export class GrassField {
@@ -446,8 +512,14 @@ export class GrassField {
       this.scl.set(s * rng.range(0.85, 1.15), s * rng.range(0.85, 1.25), s);
       this.matrix.compose(this.pos, this.q, this.scl);
       this.mesh.setMatrixAt(idx, this.matrix);
-      const t = rng.next();
+      // Correlate with the terrain's own region band so a dry rise has dry
+      // grass on it; uncorrelated tint is what makes scatter look sprinkled.
+      const band = clamp01(GRASS_BAND.fbm2(x * 0.00082, z * 0.00082, 3) * 0.5 + 0.5);
+      const local = clamp01(GRASS_BAND.fbm2(x * 0.021 + 40, z * 0.021 - 12, 2) * 0.5 + 0.5);
+      const t = local * 0.55 + rng.next() * 0.45;
       const c = o.colorA.clone().lerp(o.colorB, t * t);
+      if (o.colorDry) c.lerp(o.colorDry, smoothstep(0.52, 0.94, band) * 0.85);
+      c.multiplyScalar(0.86 + local * 0.28);
       this.tint[idx * 3] = c.r; this.tint[idx * 3 + 1] = c.g; this.tint[idx * 3 + 2] = c.b;
       this.phase[idx * 2] = rng.next();
       this.phase[idx * 2 + 1] = 0.5;
@@ -475,6 +547,17 @@ export function grassClumpGeometry(height = 1, width = 0.62) {
     parts.push(g.toNonIndexed());
   }
   const m = mergeGeometries(parts, false)!;
+  // Bake the clump's own occlusion into vertex colour: the base of a tuft sits
+  // in shadow cast by its neighbours, the tips catch the sky. Without this a
+  // meadow reads as a scatter of flat chips; with it, it reads as depth.
+  const pos = m.getAttribute('position');
+  const shade = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const t = clamp01(pos.getY(i) / height);
+    const v = lerp(0.34, 1.06, Math.pow(t, 0.72));
+    shade[i * 3] = v; shade[i * 3 + 1] = v; shade[i * 3 + 2] = v;
+  }
+  m.setAttribute('color', new THREE.BufferAttribute(shade, 3));
   m.computeBoundingSphere();
   return m;
 }
@@ -516,6 +599,7 @@ export function buildVegetation(deps: VegetationDeps) {
   const leaf = makeFoliageMaterial({
     color: '#ffffff', map: Textures.leaf, alphaTest: 0.36, side: THREE.DoubleSide,
     roughness: 0.88, key: 'leaf', windAmp: 0.075, clumpFade: [0, 540],
+    normalUp: 0.62, translucency: 0.45,
   });
 
   // three prototypes per species so a forest is not a copy-paste

@@ -46,7 +46,6 @@ varying vec3 vWorld;
 varying float vEdge;
 ${ATMO_PARS}
 uniform sampler2D uDetail;
-uniform float uTime;
 uniform float uHeight;
 uniform vec3 uWaterColor;
 uniform vec3 uFoamColor;
@@ -127,17 +126,11 @@ export class Waterfalls {
       mat.uniforms.uHeight.value = s.height;
       mat.uniforms.uSway.value = s.sway ?? 1.0;
       mat.uniforms.uFadeBottom.value = s.fadeBottom ?? 0.86;
-      // share the animated uniforms by reference
-      mat.uniforms.uTime = atmo.uTime;
-      mat.uniforms.uSunDir = atmo.uSunDir;
-      mat.uniforms.uSunColor = atmo.uSunColor;
-      mat.uniforms.uSkyZenith = atmo.uSkyZenith;
-      mat.uniforms.uSkyHorizon = atmo.uSkyHorizon;
-      mat.uniforms.uFogDensity = atmo.uFogDensity;
-      mat.uniforms.uFogFalloff = atmo.uFogFalloff;
-      mat.uniforms.uFogBase = atmo.uFogBase;
-      mat.uniforms.uFogSunPower = atmo.uFogSunPower;
-      mat.uniforms.uFogSunStrength = atmo.uFogSunStrength;
+      // Re-point every shared atmosphere uniform at the live object: cloning a
+      // material deep-copies them, which would freeze this fall's weather.
+      for (const k of Object.keys(atmo) as Array<keyof typeof atmo>) {
+        (mat.uniforms as Record<string, THREE.IUniform>)[k] = atmo[k] as THREE.IUniform;
+      }
 
       const geo = new THREE.PlaneGeometry(1, 1, 14, 40);
       geo.translate(0.5, -0.5, 0);   // uv-space authoring; the shader rebuilds positions

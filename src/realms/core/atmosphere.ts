@@ -1,11 +1,25 @@
 /**
  * REALMS — shared atmosphere.
  *
- * Every lit material in the world runs the same aerial-perspective model:
- * exponential height fog, analytically integrated along the view ray, tinted
- * toward the sun so that distant ridges glow where they face the light. One
- * uniform block is shared by reference across all materials, so a single write
- * per frame updates the whole world (sun movement, weather, the intro fade).
+ * Every lit material in the world runs the same model, from the terrain to the
+ * warrior's pauldrons, because one uniform block is shared by reference across
+ * all of them. A single write per frame moves the whole world's air.
+ *
+ * Three things live here:
+ *
+ *   Aerial perspective — distance eats saturation and pushes colour toward the
+ *   sky's blue *before* fog takes over, and sunlight scattered forward warms
+ *   whatever lies in the sun's direction. Without this, distant ridges are just
+ *   near ridges drawn smaller, which is the single biggest tell that a
+ *   landscape is synthetic.
+ *
+ *   Height fog — exponential, analytically integrated along the view ray, so
+ *   valleys fill and peaks stay clear.
+ *
+ *   Cloud shadows — a domain-warped mask drifting with the wind, applied to
+ *   every lit surface. Vast slow shadows crossing a landscape do more for a
+ *   sense of scale and weather than any amount of post-processing, and they
+ *   cost two texture taps.
  */
 
 import * as THREE from 'three';
@@ -21,8 +35,15 @@ export const atmo = {
   uFogSunPower: { value: 7.0 },
   uFogSunStrength: { value: 0.42 },
   uTime: { value: 0 },
-  uWindDir: { value: new THREE.Vector2(0.82, 0.57) },
+  uWindDir: { value: new THREE.Vector2(0.82, 0.57).normalize() },
   uWindStrength: { value: 1.0 },
+  /** Distance over which aerial perspective reaches full strength, in metres. */
+  uAerialRange: { value: 1050.0 },
+  uAerialDesat: { value: 0.56 },
+  uAerialTint: { value: 0.40 },
+  /** x = uv scale, y = drift speed, z = strength, w = coverage threshold. */
+  uCloudShadow: { value: new THREE.Vector4(0.00085, 0.0022, 0.46, 0.44) },
+  uCloudTex: { value: null as THREE.Texture | null },
   /** 0 during the black-screen open, 1 when the world is fully revealed. */
   uReveal: { value: 1.0 },
 };
@@ -37,7 +58,42 @@ uniform float uFogFalloff;
 uniform float uFogBase;
 uniform float uFogSunPower;
 uniform float uFogSunStrength;
+uniform float uAerialRange;
+uniform float uAerialDesat;
+uniform float uAerialTint;
+uniform vec4 uCloudShadow;
+uniform sampler2D uCloudTex;
+uniform vec2 uWindDir;
+uniform float uTime;
 varying vec3 vWorldPos_atmo;
+
+/**
+ * Coverage of the drifting cloud deck over a world point. 1 = full sun.
+ * Two taps at different scales, both drifting downwind, so the shapes are
+ * cloud-sized rather than tiling-sized.
+ */
+float realmsCloudShadow(vec3 wp) {
+  if (uCloudShadow.z <= 0.001) return 1.0;
+  vec2 drift = uWindDir * (uTime * uCloudShadow.y);
+  vec2 uv = wp.xz * uCloudShadow.x + drift;
+  float a = texture2D(uCloudTex, uv).a;
+  float b = texture2D(uCloudTex, uv * 2.31 + vec2(0.37, 0.11) + drift * 0.55).r;
+  float d = a * 0.62 + b * 0.46;
+  float cover = smoothstep(uCloudShadow.w, uCloudShadow.w + 0.26, d);
+  return 1.0 - cover * uCloudShadow.z;
+}
+
+/** Apply that coverage: shadowed ground loses the sun's warmth, keeps sky blue. */
+vec3 realmsCloudLight(vec3 color, vec3 wp) {
+  float s = realmsCloudShadow(wp);
+  return color * s * mix(vec3(0.86, 0.92, 1.08), vec3(1.0), s);
+}
+
+/** A gust front travelling downwind — vegetation and cloud shadows share it. */
+float realmsGust(vec2 xz) {
+  float phase = dot(xz, uWindDir) * 0.0075 - uTime * 0.62;
+  return 0.55 + 0.45 * sin(phase) * (0.6 + 0.4 * sin(phase * 0.37 + 1.7));
+}
 
 vec3 realmsSkyColor(vec3 dir) {
   float up = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -67,19 +123,44 @@ float realmsFogAmount(vec3 camPos, vec3 worldPos) {
 }
 
 vec3 realmsApplyFog(vec3 color, vec3 camPos, vec3 worldPos) {
-  vec3 dir = normalize(worldPos - camPos);
+  vec3 d = worldPos - camPos;
+  float dist = length(d);
+  vec3 dir = d / max(dist, 1e-4);
+
+  // Aerial perspective runs ahead of the fog: air between here and there
+  // scatters away saturation and shifts what is left toward the sky.
+  float ap = clamp(dist / uAerialRange, 0.0, 1.0);
+  ap *= ap;
+  float lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  color = mix(color, vec3(lum), ap * uAerialDesat);
+  color = mix(color, uSkyHorizon * (0.46 + lum * 0.72), ap * uAerialTint);
+
   float f = realmsFogAmount(camPos, worldPos);
   vec3 sky = realmsSkyColor(dir);
+  // forward scattering: haze in front of the sun glows
+  sky += uSunColor * pow(max(dot(dir, uSunDir), 0.0), 5.0) * 0.22;
   return mix(color, sky, clamp(f, 0.0, 1.0));
 }
 `;
 
 const VERT_HOOK = /* glsl */ `
 #include <worldpos_vertex>
-vWorldPos_atmo = (modelMatrix * vec4(transformed, 1.0)).xyz;
+// Mirror what <worldpos_vertex> does internally: instanced and batched meshes
+// carry their placement in a per-draw matrix, not in modelMatrix. Skipping it
+// leaves every blade of grass reporting a position near the origin, and the fog
+// integrator then dutifully paints it sky-blue.
+vec4 wpAtmo = vec4(transformed, 1.0);
+#ifdef USE_BATCHING
+  wpAtmo = batchingMatrix * wpAtmo;
+#endif
+#ifdef USE_INSTANCING
+  wpAtmo = instanceMatrix * wpAtmo;
+#endif
+vWorldPos_atmo = (modelMatrix * wpAtmo).xyz;
 `;
 
 const FRAG_HOOK = /* glsl */ `
+gl_FragColor.rgb = realmsCloudLight(gl_FragColor.rgb, vWorldPos_atmo);
 gl_FragColor.rgb = realmsApplyFog(gl_FragColor.rgb, cameraPosition, vWorldPos_atmo);
 `;
 

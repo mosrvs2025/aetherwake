@@ -146,6 +146,8 @@ uniform vec3 uGrassA;
 uniform vec3 uGrassB;
 uniform vec3 uGrassDry;
 uniform vec3 uGrassAsh;
+uniform vec3 uGrassLush;
+uniform vec3 uSoil;
 uniform vec3 uRockA;
 uniform vec3 uRockB;
 uniform vec3 uSnow;
@@ -166,6 +168,10 @@ const TERRAIN_MAP = /* glsl */ `
   vec4 dFine  = texture2D(uDetail, wp.xz * 0.075);
   vec4 dMed   = texture2D(uDetail, wp.xz * 0.0115);
   vec4 dMacro = texture2D(uDetail, wp.xz * 0.00165);
+  // A fourth, much larger band. Ground with only one scale of variation reads
+  // as a carpet no matter how good the near detail is; what sells open country
+  // is colour changing over hundreds of metres, not centimetres.
+  vec4 dRegion = texture2D(uDetail, wp.xz * 0.00047 + vec2(0.41, 0.19));
 
   // Cliffs get a vertical projection. Without this, every XZ-projected layer
   // is constant down a vertical face and the whole mountain reads as vertical
@@ -182,8 +188,8 @@ const TERRAIN_MAP = /* glsl */ `
   // ---- splat weights ----
   float wRock = smoothstep(0.30, 0.60, slope + (med - 0.5) * 0.30);
   // snow settles on ledges and shoulders, never on a sheer face
-  float wSnow = smoothstep(272.0, 348.0, wp.y + (macro - 0.5) * 104.0)
-              * (1.0 - smoothstep(0.34, 0.66, slope));
+  float wSnow = smoothstep(196.0, 286.0, wp.y + (macro - 0.5) * 96.0)
+              * (1.0 - smoothstep(0.40, 0.78, slope));
   float wShore = (1.0 - smoothstep(0.5, 8.0, abs(wp.y - uLakeY))) * (1.0 - wRock) * step(0.05, wd.b);
   float wRoad = wd.r * (1.0 - wRock * 0.85) * (1.0 - wSnow);
 
@@ -196,6 +202,16 @@ const TERRAIN_MAP = /* glsl */ `
 
   vec3 rock = mix(uRockA, uRockB, clamp(dFine.r * 0.65 + med * 0.55, 0.0, 1.0));
   rock *= 0.78 + mix(dMed.a, dSteepB.a, steepBlend) * 0.44;
+  // Bedding planes. A cliff without strata is a grey wall at any resolution;
+  // two warped horizontal bands at different thicknesses give a mountain a
+  // geological history, and they are the cheapest detail in the whole shader.
+  float bedWarp = (dSteepB.r - 0.5) * 30.0 + (dMacro.g - 0.5) * 9.0;
+  float bedA = sin((wp.y + bedWarp) * 0.29);
+  float bedB = sin((wp.y + bedWarp * 0.4) * 1.15 + 1.9);
+  float bed = bedA * 0.62 + bedB * 0.38;
+  float bedK = steepBlend * 0.9 + 0.1;
+  rock *= 1.0 + bed * 0.17 * bedK;
+  rock = mix(rock, rock * vec3(1.05, 0.99, 0.90), clamp(bedA, 0.0, 1.0) * 0.5 * bedK);
   // high rock goes cold and pale, low rock keeps a warm cast
   rock = mix(rock * vec3(1.06, 1.0, 0.92), rock * vec3(0.94, 0.98, 1.08), smoothstep(120.0, 260.0, wp.y));
 
@@ -265,6 +281,8 @@ export class Terrain {
         uGrassB: { value: new THREE.Color('#7d9450') },
         uGrassDry: { value: new THREE.Color('#8a7239') },
         uGrassAsh: { value: new THREE.Color('#5c6353') },
+        uGrassLush: { value: new THREE.Color('#3f5c30') },
+        uSoil: { value: new THREE.Color('#7a6446') },
         uRockA: { value: new THREE.Color('#5c5b57') },
         uRockB: { value: new THREE.Color('#948f85') },
         uSnow: { value: new THREE.Color('#e8eef6') },

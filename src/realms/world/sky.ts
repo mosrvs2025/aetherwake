@@ -159,7 +159,6 @@ precision highp float;
 varying vec3 vWorld;
 ${ATMO_PARS}
 ${GLSL_NOISE}
-uniform float uTime;
 uniform float uReveal;
 
 float clouds(vec2 p, out float hgt) {
@@ -266,7 +265,6 @@ varying float vOpacity;
 varying vec3 vWorld;
 ${ATMO_PARS}
 ${GLSL_NOISE}
-uniform float uTime;
 uniform float uReveal;
 
 void main() {
