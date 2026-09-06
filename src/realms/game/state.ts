@@ -131,6 +131,8 @@ interface RealmsState {
   paused: boolean;
   discovered: string[];
   cinematicTitle: { title: string; subtitle: string } | null;
+  /** A landmark reveal, shown large and centred while the frame letterboxes. */
+  discovery: { title: string; subtitle: string; key: number } | null;
   objectiveBanner: string | null;
   deaths: number;
   playTime: number;
@@ -187,6 +189,7 @@ const initial: RealmsState = {
   paused: false,
   discovered: [],
   cinematicTitle: null,
+  discovery: null,
   objectiveBanner: null,
   deaths: 0,
   playTime: 0,

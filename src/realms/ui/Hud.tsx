@@ -546,9 +546,34 @@ function CinematicTitle() {
           className="rl-display text-[76px] font-bold leading-none tracking-[0.30em] text-[#f7f1e4]"
           style={{ textShadow: '0 6px 60px rgba(0,0,0,0.85), 0 0 90px rgba(99,182,255,0.28)' }}
         >
-          REALMS
+          {t.title}
         </div>
         <div className="mt-4 text-[12px] tracking-[0.55em] text-white/50">{t.subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The discovery card. Set slightly above centre so it never covers the
+ * character, and keyed on the landmark so re-entering the trigger replays the
+ * animation rather than leaving a stale card on screen.
+ */
+function Discovery() {
+  const d = useRealms((s) => s.discovery);
+  if (!d) return null;
+  return (
+    <div key={d.key} className="pointer-events-none absolute inset-x-0 top-[30%] grid place-items-center select-none">
+      <div className="rl-anim-reveal text-center">
+        <div className="mb-3 text-[9.5px] font-semibold tracking-[0.42em] text-[#d9b978]/80">DISCOVERED</div>
+        <div
+          className="rl-display text-[42px] font-bold leading-none tracking-[0.16em] text-[#f7f1e4]"
+          style={{ textShadow: '0 4px 40px rgba(0,0,0,0.9), 0 0 70px rgba(99,182,255,0.22)' }}
+        >
+          {d.title}
+        </div>
+        <div className="mx-auto mt-4 h-px w-[210px] bg-gradient-to-r from-transparent via-[#d9b978]/55 to-transparent" />
+        <div className="mt-3 text-[11.5px] italic tracking-[0.10em] text-white/50">{d.subtitle}</div>
       </div>
     </div>
   );
@@ -948,6 +973,7 @@ export function Hud({ onResume }: { onResume: () => void }) {
         <div style={{ opacity: dim ? 0.25 : 1, transition: 'opacity 600ms ease' }}>
           <Compass />
           <Minimap />
+          <Discovery />
           <QuestTracker />
           <Vitals />
           <Abilities />

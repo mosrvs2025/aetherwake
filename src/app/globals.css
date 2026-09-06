@@ -119,3 +119,14 @@ canvas {
 .rl-anim-slide { animation: rl-slide-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .rl-anim-banner { animation: rl-banner 4200ms ease-in-out both; }
 .rl-anim-rise { animation: rl-rise 1150ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Discovery card: the name rises and settles while the letterbox eases in,
+   then holds. The exit is driven by the game clearing the state. */
+@keyframes rl-reveal {
+  0% { opacity: 0; transform: translateY(16px) scale(0.985); letter-spacing: 0.34em; }
+  22% { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); letter-spacing: normal; }
+}
+.rl-anim-reveal {
+  animation: rl-reveal 1500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

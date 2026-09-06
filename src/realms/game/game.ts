@@ -612,6 +612,7 @@ export class Game {
 
     // discovery
     this.updateDiscovery();
+    this.updateReveal(dt);
 
     // abilities cooldown
     for (let i = 0; i < this.cooldowns.length; i++) {
@@ -1033,6 +1034,43 @@ export class Game {
     this.fx.heal(this.player.pos.x, this.player.pos.y, this.player.pos.z);
   }
 
+  /**
+   * A discovery beat: the frame letterboxes, time dilates for a breath, the
+   * camera eases back to take in the scale of the thing, and the name comes up
+   * over it. Control is never taken away — you can keep walking straight
+   * through it — because a cutscene that interrupts a walk is worse than no
+   * cutscene at all. It just makes the game agree that this mattered.
+   */
+  private revealT = -1;
+  private revealKey = 0;
+
+  /** Exposed for dev tooling; the game calls it from updateDiscovery. */
+  beginReveal(title: string, subtitle: string) {
+    this.revealT = 0;
+    this.revealKey++;
+    realms.set({ discovery: { title, subtitle, key: this.revealKey } });
+    this.engine.hitStop(0.22, 0.62);
+    this.cam.punch(-3.4);
+  }
+
+  private updateReveal(dt: number) {
+    const g = this.engine.post.grade.uniforms;
+    if (this.revealT < 0) {
+      g.uLetterbox.value = damp(g.uLetterbox.value, 0, 4, dt);
+      return;
+    }
+    this.revealT += dt;
+    const t = this.revealT;
+    const REVEAL = 5.6;
+    // ease the bars in over half a second, hold, then take them back out
+    const k = Math.min(smoothstep(0.0, 0.55, t), 1 - smoothstep(REVEAL - 1.2, REVEAL, t));
+    g.uLetterbox.value = k * 0.085;
+    if (t >= REVEAL) {
+      this.revealT = -1;
+      realms.set({ discovery: null });
+    }
+  }
+
   private updateDiscovery() {
     for (const l of LANDMARKS) {
       if (this.discovered.has(l.id)) continue;
@@ -1051,6 +1089,8 @@ export class Game {
       if (l.id === 'skyfall_keep') this.quests.start('the_wardens_key');
       this.cam.addShake(0.12, 8);
       if (this.companion.state !== 'down' && Math.random() < 0.5) this.companion.howl();
+      // The places worth walking to get a moment, not a corner notification.
+      if (l.beacon || l.xp > 0) this.beginReveal(l.name, l.subtitle);
     }
   }
 
