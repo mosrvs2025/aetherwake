@@ -132,6 +132,11 @@ export class Player {
     this.group.rotation.y = yaw;
   }
 
+  private lastSpeed = 0;
+  private smoothAccel = 0;
+  /** Smoothed forward acceleration, m/s². Read by the camera for its FOV kick. */
+  get accel() { return this.smoothAccel; }
+
   get speed() { return Math.hypot(this.vel.x, this.vel.z); }
   get alive() { return this.state !== 'dead'; }
 
@@ -388,6 +393,12 @@ export class Player {
   private driveAnimation(dt: number, inputMag: number, camYaw: number) {
     const a = this.char.anim;
     const sp = this.speed;
+    // Signed acceleration along the facing direction, smoothed. The animator
+    // leans the body into it, so setting off and pulling up read as weight.
+    const rawAccel = (sp - this.lastSpeed) / Math.max(dt, 1e-4);
+    this.lastSpeed = sp;
+    this.smoothAccel = damp(this.smoothAccel, THREE.MathUtils.clamp(rawAccel, -40, 40), 9, dt);
+    a.ctx.extra.accel = this.smoothAccel;
     this.char.velocity.copy(this.vel);
     this.char.grounded = this.grounded ? 1 : 0;
     this.char.advanceGait(dt, this.grounded ? sp : 0);

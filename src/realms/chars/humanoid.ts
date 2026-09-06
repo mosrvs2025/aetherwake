@@ -279,9 +279,41 @@ export function registerHumanoidAnims(anim: Animator, rig: Rig, opts: { armed?: 
     void ctx;
   }, { fade: 0.22 });
 
-  // ---------------- walk / run ----------------
-  const locomotion = (stride: number, lean: number, armSwing: number, bounce: number, liftScale: number) =>
+  // ---------------- walk / run / sprint ----------------
+  /**
+   * One continuous gait rather than three clips crossfading into each other.
+   *
+   * Discrete walk/run/sprint states have to blend between poses whose feet are
+   * in different places, which is what produces the small skate at every speed
+   * threshold. Here the *parameters* are interpolated instead — stride, lean,
+   * arm swing, bounce — so there is exactly one pose at any speed and nothing
+   * to cross-fade. Acceleration adds forward lean on top, which is what makes
+   * setting off and pulling up read as weight rather than as a speed change.
+   */
+  const GAIT_KEYS = [
+    // speed01, stride, lean, armSwing, bounce, liftScale
+    [0.00, 0.44, 0.02, 0.30, 0.020, 0.85],
+    [0.30, 0.62, 0.06, 0.42, 0.030, 1.00],
+    [0.62, 0.86, 0.20, 0.72, 0.052, 1.25],
+    [1.00, 1.02, 0.34, 0.95, 0.070, 1.45],
+  ];
+
+  const gaitParams = (speed: number, out: number[]) => {
+    let i = 0;
+    while (i < GAIT_KEYS.length - 2 && speed > GAIT_KEYS[i + 1][0]) i++;
+    const a = GAIT_KEYS[i], b = GAIT_KEYS[i + 1];
+    const t = clamp01((speed - a[0]) / Math.max(b[0] - a[0], 1e-4));
+    for (let k = 1; k < a.length; k++) out[k - 1] = a[k] + (b[k] - a[k]) * t;
+    return out;
+  };
+
+  const gaitOut = [0, 0, 0, 0, 0];
+
+  const locomotion = () =>
     (p: Pose, _t: number, w: number, ctx: AnimCtx) => {
+      const [stride, leanBase, armSwing, bounce, liftScale] = gaitParams(clamp01(ctx.speed), gaitOut);
+      // accel is metres per second squared, signed along the facing direction
+      const lean = leanBase + THREE.MathUtils.clamp((ctx.extra.accel ?? 0) * 0.016, -0.26, 0.20);
       const g = ctx.gait * TAU;
       const bob = cos(g * 2) * bounce;
       const lift = (ph: number) => Math.max(0, sin(ph)) ** 1.4;
@@ -324,9 +356,12 @@ export function registerHumanoidAnims(anim: Animator, rig: Rig, opts: { armed?: 
       cloakSettle(p, w, ctx.time, lean * 1.4 + 0.25);
     };
 
-  anim.register('walk', locomotion(0.62, 0.06, 0.42, 0.030, 1.0), { fade: 0.18 });
-  anim.register('run', locomotion(0.86, 0.20, 0.72, 0.052, 1.25), { fade: 0.18 });
-  anim.register('sprint', locomotion(1.02, 0.34, 0.95, 0.070, 1.45), { fade: 0.18 });
+  // All three names drive the same continuous gait, so the old call sites keep
+  // working and switching between them no longer costs a cross-fade.
+  const move = locomotion();
+  anim.register('walk', move, { fade: 0.16 });
+  anim.register('run', move, { fade: 0.16 });
+  anim.register('sprint', move, { fade: 0.16 });
 
   // ---------------- strafing (locked on) ----------------
   anim.register('strafe', (p, _t, w, ctx) => {

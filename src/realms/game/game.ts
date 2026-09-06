@@ -179,7 +179,14 @@ export class Game {
       onDamage: (d) => this.onDamage(d),
       onKill: (e) => this.onKill(e),
       onBossPhase: (p) => this.onBossPhase(p),
-      onPlayerHit: () => { this.cam.addShake(0.55); this.damageFlash = 1; },
+      onPlayerHit: () => {
+        this.cam.addShake(0.55);
+        this.damageFlash = 1;
+        // taking a hit stops time harder than landing one, and pulls the
+        // camera in, so a bad trade is felt before the health bar is read
+        this.engine.hitStop(0.10, 0.92);
+        this.cam.punch(-3.2);
+      },
     });
 
     this.engine.scene.add(this.world.group);
@@ -380,7 +387,14 @@ export class Game {
   private hookPlayer() {
     this.player.onAttack = (e) => {
       const hits = this.combat.resolvePlayerAttack(e, this.player);
-      if (hits > 0) this.cam.addShake(e.heavy ? 0.42 : 0.24, 40);
+      if (hits > 0) {
+        this.cam.addShake(e.heavy ? 0.42 : 0.24, 40);
+        // the freeze grows with the weight of the blow and with how many
+        // things it caught, but never past the point of reading as a hitch
+        const weight = e.heavy ? 0.085 : 0.045;
+        this.engine.hitStop(Math.min(0.13, weight + (hits - 1) * 0.015), e.heavy ? 0.9 : 0.8);
+        this.cam.punch(e.heavy ? 2.6 : 1.4);
+      }
       audio.sfx(e.heavy ? 'swingHeavy' : 'swing', 0.8);
     };
     this.player.onAbility = (slot) => this.useAbility(slot);
@@ -618,6 +632,8 @@ export class Game {
       strafe: this.player.char.anim.ctx.strafe,
       airborne: !this.player.grounded,
       dead: false,
+      velocity: this.player.vel,
+      accel: this.player.accel,
     });
 
     // combat music intensity

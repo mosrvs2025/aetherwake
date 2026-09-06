@@ -52,6 +52,9 @@ export class FollowCamera {
   private shakeSeed = Math.random() * 100;
   private roll = 0;
   private fovCur = DEFAULT.fov;
+  private fovKick = 0;
+  private breath = Math.random() * 40;
+  private lead = new THREE.Vector3();
   private _v = new THREE.Vector3();
   private _q = new THREE.Quaternion();
   private _e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -65,6 +68,14 @@ export class FollowCamera {
   constructor(camera: THREE.PerspectiveCamera, private physics: Physics) {
     this.camera = camera;
     this.smoothFocus.set(0, 0, 0);
+  }
+
+  /**
+   * A one-off FOV punch — a heavy hit landing, a dodge, a boss slam. Positive
+   * widens (power going out), negative narrows (power coming in).
+   */
+  punch(degrees: number) {
+    if (Math.abs(degrees) > Math.abs(this.fovKick)) this.fovKick = degrees;
   }
 
   addShake(amount: number, freq = 34) {
@@ -108,12 +119,32 @@ export class FollowCamera {
 
   update(dt: number, target: THREE.Vector3, opts: {
     speed01: number; sprinting: boolean; strafe: number; airborne: boolean; dead: boolean;
+    /** Planar velocity, for look-ahead. */
+    velocity?: THREE.Vector3;
+    /** Forward acceleration, m/s², for the FOV kick. */
+    accel?: number;
   }) {
     const T = this.tuning;
 
     // ---- focus point: hips height, lagging slightly behind fast motion ----
     this.focus.copy(target);
     this.focus.y += T.height;
+
+    // Look-ahead: bias the focus toward where the player is going, so a run
+    // shows the road rather than the back of a head. Damped separately from
+    // the arm so it eases in over about half a second and never snaps.
+    if (opts.velocity && !this.lockTarget) {
+      const v = opts.velocity;
+      const sp = Math.hypot(v.x, v.z);
+      const k = sp > 0.4 ? clamp01(sp / 8) * 1.35 / sp : 0;
+      this.lead.x = damp(this.lead.x, v.x * k, 2.6, dt);
+      this.lead.z = damp(this.lead.z, v.z * k, 2.6, dt);
+    } else {
+      this.lead.x = damp(this.lead.x, 0, 3.5, dt);
+      this.lead.z = damp(this.lead.z, 0, 3.5, dt);
+    }
+    this.focus.x += this.lead.x;
+    this.focus.z += this.lead.z;
     const follow = opts.dead ? 2.2 : lerp(9.5, 6.0, clamp01(opts.speed01));
     this.smoothFocus.x = damp(this.smoothFocus.x, this.focus.x, follow, dt);
     this.smoothFocus.y = damp(this.smoothFocus.y, this.focus.y, follow * 0.72, dt);
@@ -153,6 +184,19 @@ export class FollowCamera {
     const gh = this.physics.groundHeight(this.pos.x, this.pos.z, this.pos.y, 1e6) + 0.55;
     if (this.pos.y < gh) this.pos.y = gh;
 
+    // ---- handheld ----
+    // A rig this steady reads as a tripod. A little drift, scaled down when
+    // you are moving fast (where the motion itself carries the frame) and off
+    // entirely under a cinematic, is the difference between a camera and a mount.
+    this.breath += dt;
+    if (this.cinematic < 0.99) {
+      const b = this.breath;
+      const amp = (0.030 + 0.022 * (1 - clamp01(opts.speed01))) * (1 - this.cinematic);
+      this.pos.x += (Math.sin(b * 0.73) * 0.6 + Math.sin(b * 1.61 + 2.1) * 0.4) * amp;
+      this.pos.y += (Math.sin(b * 0.91 + 1.3) * 0.6 + Math.sin(b * 2.07) * 0.4) * amp * 0.8;
+      this.pos.z += (Math.sin(b * 0.61 + 3.4) * 0.6 + Math.sin(b * 1.37 + 0.6) * 0.4) * amp;
+    }
+
     // ---- shake ----
     if (this.shake > 0.0005) {
       const t = performance.now() * 0.001 * this.shakeFreq + this.shakeSeed;
@@ -180,9 +224,16 @@ export class FollowCamera {
     this.roll = damp(this.roll, wantRoll, 5, dt);
     this.camera.rotateZ(this.roll);
 
+    // FOV answers to acceleration as well as to speed: the widening as you
+    // break into a sprint is what sells the sprint, not the top speed.
+    this.fovKick = damp(this.fovKick, 0, 3.2, dt);
+    if (opts.accel !== undefined && this.cinematic < 0.5) {
+      const fromAccel = THREE.MathUtils.clamp(opts.accel * 0.09, 0, 4.5);
+      if (fromAccel > this.fovKick) this.fovKick = fromAccel;
+    }
     const wantFov = this.cinematic > 0.001
       ? lerp(T.fov, this.cinematicFov, this.cinematic)
-      : lerp(T.fov, T.sprintFov, opts.sprinting ? clamp01(opts.speed01) : 0);
+      : lerp(T.fov, T.sprintFov, opts.sprinting ? clamp01(opts.speed01) : 0) + this.fovKick;
     this.fovCur = damp(this.fovCur, wantFov, 4.5, dt);
     if (Math.abs(this.camera.fov - this.fovCur) > 0.01) {
       this.camera.fov = this.fovCur;

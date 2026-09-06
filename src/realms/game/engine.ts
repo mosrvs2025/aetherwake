@@ -11,6 +11,7 @@ import { PostFX, type Quality } from '../core/postfx';
 import { atmo } from '../core/atmosphere';
 import { Input } from '../core/input';
 import { Textures } from '../world/textures';
+import { clamp01 } from '../core/math';
 
 export interface FrameCtx {
   dt: number;
@@ -213,10 +214,34 @@ export class Engine {
     cancelAnimationFrame(this.raf);
   }
 
+  /**
+   * Hit stop. A few frames of near-frozen time on a landed blow is the oldest
+   * trick in action games and still the most effective one: it is what tells
+   * the hand that the sword met something solid. Kept short — long enough to
+   * register, too short to read as a stutter — and it dilates the simulation
+   * rather than pausing it, so animations ease through the freeze.
+   */
+  hitStop(seconds: number, strength = 0.86) {
+    if (seconds > this.stopTime) {
+      this.stopTime = seconds;
+      this.stopStrength = strength;
+    }
+  }
+
+  private stopTime = 0;
+  private stopStrength = 0;
+
   private tick() {
     this.renderer.info.reset();
     const raw = this.clock.getDelta();
-    const dt = Math.min(raw, 0.05);
+    let dt = Math.min(raw, 0.05);
+    if (this.stopTime > 0) {
+      this.stopTime -= dt;
+      // ease back out of the freeze rather than snapping to full speed
+      const k = this.stopTime > 0 ? this.stopStrength : this.stopStrength * 0.4;
+      dt *= 1 - clamp01(k);
+      if (this.stopTime <= 0) this.stopTime = 0;
+    }
     this.elapsed += dt;
     atmo.uTime.value = this.elapsed;
 
