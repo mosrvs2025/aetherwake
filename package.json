@@ -6,7 +6,9 @@
     "dev": "next dev --port 43141 --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --port 43141 --hostname 0.0.0.0",
-    "lint": "eslint"
+    "lint": "eslint",
+    "bundle": "node scripts/build-standalone.mjs",
+    "bundle:fragment": "node scripts/build-standalone.mjs --fragment"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -30,6 +32,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.185.4",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",

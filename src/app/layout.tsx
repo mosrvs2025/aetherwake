@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Cinzel, Outfit } from "next/font/google";
 import "./globals.css";
@@ -15,9 +15,20 @@ const sans = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Aetherwake — steal the world's breath",
+  title: "REALMS — The Sundered Shelf",
   description:
-    "A 3D fantasy sandbox RPG where almost everything in the Vale can be witnessed, absorbed, braided, and grafted back into the land.",
+    "A third-person fantasy action RPG that runs in your browser. Cross a floating continent, light the shrines, and put down whatever is still wearing the Warden's armour.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  // Paint under the notch and the home indicator; the HUD pads itself back
+  // out with env(safe-area-inset-*).
+  viewportFit: "cover",
+  themeColor: "#04060a",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
