@@ -44,7 +44,24 @@ export default function Realms() {
     };
   }, []);
 
-  const onStart = useCallback(() => { void gameRef.current?.begin(); }, []);
+  const onStart = useCallback(() => {
+    // On a phone the browser chrome costs a third of the height of a landscape
+    // window, and this tap is the one user gesture that can buy it back. Both
+    // calls are best-effort: desktop ignores the orientation lock, and an
+    // embedded frame may refuse fullscreen outright. Neither is worth an error.
+    if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) {
+      const el = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+      };
+      try {
+        const r = el.requestFullscreen?.({ navigationUI: 'hide' }) ?? el.webkitRequestFullscreen?.();
+        void Promise.resolve(r)
+          .then(() => (screen.orientation as { lock?: (o: string) => Promise<void> })?.lock?.('landscape'))
+          .catch(() => {});
+      } catch { /* not permitted here; the game plays fine windowed */ }
+    }
+    void gameRef.current?.begin();
+  }, []);
   const onPress = useCallback((name: string, down: boolean) => { gameRef.current?.press(name, down); }, []);
   const onResume = useCallback(() => { gameRef.current?.resume(); }, []);
 
@@ -53,7 +70,7 @@ export default function Realms() {
       ref={ref}
       style={{ position: 'fixed', inset: 0, background: '#04060a', overflow: 'hidden' }}
     >
-      <Hud onResume={onResume} />
+      <Hud onResume={onResume} onPress={onPress} />
       <TitleScreen onStart={onStart} />
       <LoadingScreen />
       <TouchControls onPress={onPress} />

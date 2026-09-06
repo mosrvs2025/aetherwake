@@ -29,6 +29,29 @@ export interface InputFrame {
   anyKey: boolean;
 }
 
+/** Radius of the virtual stick, in CSS pixels. Shared with its HUD drawing. */
+export const STICK_R = 58;
+/** Travel below this is a thumb resting, not a thumb steering. */
+export const STICK_DEAD = 6;
+
+/**
+ * Live state of the on-screen stick, written by the input layer and read by
+ * the HUD's render loop. It lives outside React on purpose: the stick moves
+ * every frame a thumb is down, and pushing that through component state would
+ * re-render the whole HUD sixty times a second to move one circle.
+ */
+export const touchStick = {
+  enabled: false,
+  active: false,
+  /** Where the thumb first landed, in client coordinates. */
+  ox: 0, oy: 0,
+  /** Offset from that origin, already clamped to STICK_R. */
+  dx: 0, dy: 0,
+  sprint: false,
+  /** Bumped on every change so a reader can skip untouched frames. */
+  version: 0,
+};
+
 const EMPTY: InputFrame = {
   moveX: 0, moveZ: 0, lookYaw: 0, lookPitch: 0, zoom: 0,
   sprint: false, jump: false, dodge: false, attack: false, heavy: false,
@@ -48,6 +71,8 @@ export class Input {
   private dZoom = 0;
   private pointerDown = false;
   private mouseSensitivity = 0.0022;
+  /** Thumbs are coarser than mice, and phone screens are smaller. */
+  touchLookSensitivity = 0.0062;
   private el: HTMLElement;
   private disposers: Array<() => void> = [];
   private anyKeyFlag = false;
@@ -58,6 +83,9 @@ export class Input {
   private touchMoveId = -1;
   private touchLookPrev = { x: 0, y: 0 };
   private touchOrigin = { x: 0, y: 0 };
+  /** Two-finger pinch on the look side, for camera distance. */
+  private pinch = new Map<number, { x: number; y: number }>();
+  private pinchPrev = 0;
   hasTouch = false;
   /** Set by the touch HUD; consumed as edges. */
   private virtualEdges = new Set<EdgeName>();
@@ -68,6 +96,13 @@ export class Input {
 
   constructor(el: HTMLElement) {
     this.el = el;
+    // Decide this up front rather than on the first touch: pointer lock is
+    // requested when the game starts, which on a phone is before any finger
+    // has landed on the canvas.
+    this.hasTouch = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches;
+    touchStick.enabled = this.hasTouch;
     this.bind();
   }
 
@@ -100,7 +135,15 @@ export class Input {
       }
     });
     this.on(window, 'keyup', (e) => { this.keys.delete(e.code); });
-    this.on(window, 'blur', () => { this.keys.clear(); this.pointerDown = false; });
+    this.on(window, 'blur', () => { this.keys.clear(); this.pointerDown = false; this.releaseTouches(); });
+    // A finger that leaves the element mid-drag — over a button, off the edge
+    // of the screen, into a system gesture — never delivers pointerup to the
+    // canvas, which would otherwise leave the stick stuck at full deflection.
+    this.on(window, 'pointerup', (e) => { if (e.pointerType === 'touch') this.onTouchUp(e); });
+    this.on(window, 'pointercancel', (e) => { if (e.pointerType === 'touch') this.onTouchUp(e); });
+    this.on(document as unknown as HTMLElement, 'visibilitychange' as keyof HTMLElementEventMap, () => {
+      if (document.hidden) this.releaseTouches();
+    });
 
     this.on(this.el, 'pointerdown', (e) => {
       if (!this.enabled) return;
@@ -152,38 +195,101 @@ export class Input {
   /* ---------------- touch ---------------- */
   private onTouchDown(e: PointerEvent) {
     this.hasTouch = true;
+    touchStick.enabled = true;
     const rect = this.el.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    if (x < rect.width * 0.42 && this.touchMoveId < 0) {
+    // The stick lives wherever the left thumb lands rather than at a fixed
+    // spot: a phone is held differently every time you pick it up, and a
+    // thumb that has to find a painted circle is a thumb watching the circle
+    // instead of the game.
+    if (x < rect.width * 0.45 && this.touchMoveId < 0) {
       this.touchMoveId = e.pointerId;
       this.touchOrigin = { x: e.clientX, y: e.clientY };
       this.touchMove.active = true;
-    } else if (this.touchLookId < 0) {
-      this.touchLookId = e.pointerId;
-      this.touchLookPrev = { x: e.clientX, y: e.clientY };
+      touchStick.active = true;
+      touchStick.ox = e.clientX;
+      touchStick.oy = e.clientY;
+      touchStick.dx = 0;
+      touchStick.dy = 0;
+      touchStick.sprint = false;
+      touchStick.version++;
+    } else {
+      this.pinch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touchLookId < 0) {
+        this.touchLookId = e.pointerId;
+        this.touchLookPrev = { x: e.clientX, y: e.clientY };
+      }
     }
   }
+
   private onTouchMove(e: PointerEvent) {
     if (e.pointerId === this.touchMoveId) {
       const dx = e.clientX - this.touchOrigin.x;
       const dy = e.clientY - this.touchOrigin.y;
-      const r = 62;
-      const len = Math.hypot(dx, dy) || 1;
-      const s = Math.min(1, len / r) / len;
-      this.touchMove.x = dx * s;
-      this.touchMove.y = dy * s;
-    } else if (e.pointerId === this.touchLookId) {
-      this.dYaw -= (e.clientX - this.touchLookPrev.x) * 0.005;
-      this.dPitch -= (e.clientY - this.touchLookPrev.y) * 0.005;
+      const len = Math.hypot(dx, dy);
+      // Clamped *pixel* offset, so the drawn knob and the movement read agree
+      // on units. A dead zone keeps a resting thumb from creeping.
+      const eff = len < STICK_DEAD ? 0 : Math.min(len, STICK_R);
+      const inv = len > 0 ? eff / len : 0;
+      this.touchMove.x = dx * inv;
+      this.touchMove.y = dy * inv;
+      touchStick.dx = this.touchMove.x;
+      touchStick.dy = this.touchMove.y;
+      // Push the stick to its rim and you run. Holding a separate sprint
+      // button while steering and turning the camera needs a third thumb.
+      touchStick.sprint = len >= STICK_R * 0.95;
+      touchStick.version++;
+      return;
+    }
+    if (this.pinch.has(e.pointerId)) this.pinch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pinch.size >= 2) {
+      const [a, b] = [...this.pinch.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (this.pinchPrev > 0) this.dZoom -= (d - this.pinchPrev) * 0.02;
+      this.pinchPrev = d;
+      return;   // a pinch is not a look
+    }
+    if (e.pointerId === this.touchLookId) {
+      this.dYaw -= (e.clientX - this.touchLookPrev.x) * this.touchLookSensitivity;
+      this.dPitch -= (e.clientY - this.touchLookPrev.y) * this.touchLookSensitivity;
       this.touchLookPrev = { x: e.clientX, y: e.clientY };
     }
   }
+
   private onTouchUp(e: PointerEvent) {
     if (e.pointerId === this.touchMoveId) {
       this.touchMoveId = -1;
       this.touchMove.x = 0; this.touchMove.y = 0; this.touchMove.active = false;
+      touchStick.active = false;
+      touchStick.sprint = false;
+      touchStick.version++;
     }
-    if (e.pointerId === this.touchLookId) this.touchLookId = -1;
+    this.pinch.delete(e.pointerId);
+    if (this.pinch.size < 2) this.pinchPrev = 0;
+    if (e.pointerId === this.touchLookId) {
+      this.touchLookId = -1;
+      // hand the look over to whatever finger is still down on that side
+      const next = [...this.pinch.keys()][0];
+      if (next !== undefined) {
+        this.touchLookId = next;
+        this.touchLookPrev = { ...this.pinch.get(next)! };
+      }
+    }
+  }
+
+  /** Drop every finger the input layer thinks is still down. */
+  private releaseTouches() {
+    this.touchMoveId = -1;
+    this.touchLookId = -1;
+    this.pinch.clear();
+    this.pinchPrev = 0;
+    this.touchMove.x = 0;
+    this.touchMove.y = 0;
+    this.touchMove.active = false;
+    this.virtualSprint = false;
+    touchStick.active = false;
+    touchStick.sprint = false;
+    touchStick.version++;
   }
 
   /** Called by on-screen buttons. */
@@ -208,8 +314,9 @@ export class Input {
     if (k.has('KeyA') || k.has('ArrowLeft')) mx -= 1;
     if (k.has('KeyD') || k.has('ArrowRight')) mx += 1;
     if (this.touchMove.active) {
-      mx += this.touchMove.x / 62;
-      mz += this.touchMove.y / 62;
+      // touchMove is a clamped pixel offset; one division puts it in [-1, 1].
+      mx += this.touchMove.x / STICK_R;
+      mz += this.touchMove.y / STICK_R;
     }
 
     // Gamepad — first connected pad wins.
@@ -242,7 +349,8 @@ export class Input {
     f.zoom = this.dZoom;
     this.dYaw = this.dPitch = this.dZoom = 0;
 
-    f.sprint = k.has('ShiftLeft') || k.has('ShiftRight') || padSprint || this.virtualSprint;
+    f.sprint = k.has('ShiftLeft') || k.has('ShiftRight') || padSprint
+      || this.virtualSprint || touchStick.sprint;
 
     for (const e of this.virtualEdges) this.edges.add(e);
     this.virtualEdges.clear();

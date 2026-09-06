@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { Game } from './game';
 import { audio } from '../core/audio';
 import { realms } from './state';
+import { touchStick } from '../core/input';
 
 export interface GameHandle {
   begin: () => Promise<void>;
@@ -173,7 +174,9 @@ export async function boot(container: HTMLElement): Promise<GameHandle> {
   // exposed for the headless smoke test and for poking at a live session
   (window as unknown as Record<string, unknown>).__realmsGame = game;
 
-  const held = new Set<string>();
+  // Dev tooling reads the live stick state to verify touch input end to end.
+  (window as unknown as Record<string, unknown>).__realmsStick = touchStick;
+
   return {
     begin: () => game.begin(),
     dispose: () => {
@@ -181,12 +184,13 @@ export async function boot(container: HTMLElement): Promise<GameHandle> {
       game.dispose();
     },
     press: (name, down) => {
+      // Sprint is the only held control; everything else is an edge, and the
+      // edge set already de-duplicates within a frame. An earlier version kept
+      // its own "currently held" set to do that, which meant a button that
+      // unmounted between press and release — tapping Map, say — left its name
+      // marked held forever and stopped responding for the rest of the run.
       if (name === 'sprint') { game.engine.input.setVirtualSprint(down); return; }
-      if (down && !held.has(name)) {
-        held.add(name);
-        game.engine.input.press(name as 'jump');
-      }
-      if (!down) held.delete(name);
+      if (down) game.engine.input.press(name as 'jump');
     },
     resume: () => {
       realms.set({ paused: false });

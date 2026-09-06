@@ -145,3 +145,104 @@ canvas {
   50% { box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 16px rgba(255, 90, 74, 0.5); }
 }
 .rl-anim-pulse { animation: rl-pulse 1150ms ease-in-out infinite; }
+
+/* ------------------------------------------------------------------ *
+ * Touch and small screens
+ *
+ * The HUD is authored for a desktop window. On a phone held sideways the
+ * same elements have to survive a viewport a third the height, a notch on
+ * one edge, and two thumbs parked over the bottom corners. Rather than a
+ * second HUD, each cluster is anchored into the safe area and scaled from
+ * its own corner, which keeps every proportion inside it intact.
+ * ------------------------------------------------------------------ */
+
+/* The icon column owns the first 56px of the left edge; the quest block and
+   the vitals both start clear of it and share a left edge with each other. */
+.rl-touch .rl-hud-quest {
+  left: calc(env(safe-area-inset-left, 0px) + 60px);
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
+.rl-touch .rl-hud-minimap {
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+}
+.rl-touch .rl-hud-vitals {
+  left: calc(env(safe-area-inset-left, 0px) + 60px);
+  bottom: auto;
+  top: calc(env(safe-area-inset-top, 0px) + 74px);
+}
+.rl-touch .rl-hud-toasts {
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+}
+.rl-touch .rl-hud-compass {
+  top: calc(env(safe-area-inset-top, 0px) + 4px);
+}
+
+/* Short viewports: a phone in landscape, or a small window. Scale each
+   cluster toward the edge it is anchored to so nothing drifts off screen. */
+@media (max-height: 560px) {
+  .rl-hud-quest { transform: scale(0.82); transform-origin: top left; }
+  .rl-hud-minimap { transform: scale(0.72); transform-origin: top right; }
+  .rl-hud-vitals { transform: scale(0.80); transform-origin: bottom left; }
+  .rl-hud-toasts { transform: scale(0.84); transform-origin: top right; }
+  .rl-hud-compass { transform: scale(0.86); transform-origin: top center; }
+  .rl-touch .rl-hud-vitals { transform-origin: top left; }
+}
+@media (max-height: 420px) {
+  .rl-hud-quest { transform: scale(0.72); }
+  .rl-hud-minimap { transform: scale(0.60); }
+  .rl-hud-vitals { transform: scale(0.70); }
+  .rl-hud-toasts { transform: scale(0.74); }
+}
+
+/* Narrow viewports lose the toast column before they lose the quest. */
+@media (max-width: 700px) {
+  .rl-hud-toasts { width: 210px; }
+  .rl-hud-quest { width: 208px; }
+}
+
+/* In a narrow window the vitals column and the centred ability row grow into
+   each other. Scale both toward their own anchors so they part cleanly rather
+   than one of them sliding over the other. */
+@media (max-width: 1000px) {
+  .rl-hud-vitals { transform: scale(0.70); transform-origin: bottom left; }
+  /* Tailwind centres this with the standalone `translate` property, which
+     composes ahead of `transform`, so scale alone is enough here. */
+  .rl-hud-abilities { transform: scale(0.84); transform-origin: bottom center; }
+  .rl-touch .rl-hud-vitals { transform-origin: top left; }
+}
+@media (max-width: 780px) {
+  .rl-hud-vitals { transform: scale(0.60); }
+  .rl-hud-abilities { transform: scale(0.74); }
+}
+
+@keyframes rl-rotate-hint {
+  0%, 40% { transform: rotate(90deg) scale(0.86); }
+  60%, 100% { transform: rotate(0deg) scale(1); }
+}
+
+/* Nothing in the game is text you select or a link you long-press. */
+html, body {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
+/* Display type that has to survive a 390px-wide phone as well as a desktop.
+   Both the size and the letter-spacing scale — a wide track is what actually
+   pushes a short word off the edges, not the glyphs. */
+.rl-fluid-xl {
+  font-size: clamp(34px, 9.5vw, 86px);
+  letter-spacing: clamp(0.10em, 1.6vw, 0.30em);
+}
+.rl-fluid-lg {
+  font-size: clamp(28px, 6.5vw, 58px);
+  letter-spacing: clamp(0.10em, 1.6vw, 0.32em);
+}
+.rl-fluid-md {
+  font-size: clamp(22px, 4.6vw, 44px);
+  letter-spacing: clamp(0.08em, 1.1vw, 0.20em);
+}

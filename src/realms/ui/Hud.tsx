@@ -9,7 +9,8 @@
  * renderer free for the world.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { STICK_R, touchStick } from '../core/input';
 import { useRealms, type CompassMark, type MinimapBlip } from '../game/state';
 
 /* ------------------------------------------------------------------ *
@@ -72,7 +73,7 @@ function Vitals() {
   const low = hp / hpMax < 0.3;
 
   return (
-    <div className="pointer-events-none absolute bottom-5 left-5 flex items-end gap-3 select-none">
+    <div className="rl-hud-vitals pointer-events-none absolute bottom-5 left-5 flex items-end gap-3 select-none">
       <div className="relative grid h-[62px] w-[62px] place-items-center">
         <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
           <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(120,150,190,0.16)" strokeWidth="5" />
@@ -147,7 +148,7 @@ function Abilities() {
     });
   }, []);
   return (
-    <div className="pointer-events-none absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-[26px] select-none">
+    <div className="rl-hud-abilities pointer-events-none absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-[26px] select-none">
       {abilities.map((a) => {
         const cooling = a.cooldown > 0.001;
         const ready = !cooling && energy >= a.cost;
@@ -230,7 +231,7 @@ function Compass() {
   };
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 select-none">
+    <div className="rl-hud-compass pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 select-none">
       <div
         className="relative h-[34px] overflow-hidden rounded-[3px]"
         style={{
@@ -296,7 +297,7 @@ function Minimap() {
   const r = size / 2;
 
   return (
-    <div className="pointer-events-none absolute right-5 top-5 select-none">
+    <div className="rl-hud-minimap pointer-events-none absolute right-5 top-5 select-none">
       <div
         className="rl-panel relative overflow-hidden rounded-full"
         style={{ width: size, height: size }}
@@ -363,7 +364,7 @@ function QuestTracker() {
   const active = quests.find((q) => q.id === activeId) ?? quests.find((q) => !q.complete);
   if (!active) return null;
   return (
-    <div className="pointer-events-none absolute left-5 top-5 w-[268px] select-none rl-anim-up">
+    <div className="rl-hud-quest pointer-events-none absolute left-5 top-5 w-[268px] select-none rl-anim-up">
       <div className="mb-1 flex items-center gap-2">
         <span className="h-px w-4 bg-[var(--gold)]/60" />
         <span className="rl-display text-[10px] tracking-[0.26em] text-[var(--gold)]/85">QUEST</span>
@@ -435,13 +436,18 @@ function BossBar() {
 function InteractPrompt() {
   const prompt = useRealms((s) => s.prompt);
   const dialogue = useRealms((s) => s.dialogue);
+  const touch = useTouch();
   if (!prompt || dialogue) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 bottom-[26%] -translate-x-1/2 select-none rl-anim-up">
       <div className="rl-panel flex items-center gap-2.5 rounded-[5px] px-3 py-2">
-        <span className="grid h-[22px] w-[22px] place-items-center rounded-[4px] border border-white/25 bg-white/8 text-[11px] font-bold text-white/90">
-          {prompt.key}
-        </span>
+        {/* A keycap means nothing without a keyboard; on touch the button
+            that does this is already pulsing in the corner. */}
+        {!touch && (
+          <span className="grid h-[22px] w-[22px] place-items-center rounded-[4px] border border-white/25 bg-white/8 text-[11px] font-bold text-white/90">
+            {prompt.key}
+          </span>
+        )}
         <span className="text-[13px] text-white/88 rl-etch">{prompt.text}</span>
       </div>
     </div>
@@ -460,7 +466,7 @@ const TOAST_STYLE: Record<string, { accent: string; kicker: string }> = {
 function Toasts() {
   const toasts = useRealms((s) => s.toasts);
   return (
-    <div className="pointer-events-none absolute right-5 top-[210px] flex w-[290px] flex-col gap-2 select-none">
+    <div className="rl-hud-toasts pointer-events-none absolute right-5 top-[210px] flex w-[290px] flex-col gap-2 select-none">
       {toasts.map((t) => {
         const st = TOAST_STYLE[t.kind] ?? TOAST_STYLE.info;
         return (
@@ -573,12 +579,12 @@ function CinematicTitle() {
     <div className="pointer-events-none absolute inset-0 grid place-items-center select-none">
       <div className="rl-anim-in text-center">
         <div
-          className="rl-display text-[76px] font-bold leading-none tracking-[0.30em] text-[#f7f1e4]"
+          className="rl-display rl-fluid-xl font-bold leading-none text-[#f7f1e4]"
           style={{ textShadow: '0 6px 60px rgba(0,0,0,0.85), 0 0 90px rgba(99,182,255,0.28)' }}
         >
           {t.title}
         </div>
-        <div className="mt-4 text-[12px] tracking-[0.55em] text-white/50">{t.subtitle}</div>
+        <div className="mt-4 text-[12px] tracking-[0.34em] text-white/50 sm:tracking-[0.55em]">{t.subtitle}</div>
       </div>
     </div>
   );
@@ -597,7 +603,7 @@ function Discovery() {
       <div className="rl-anim-reveal text-center">
         <div className="mb-3 text-[9.5px] font-semibold tracking-[0.42em] text-[#d9b978]/80">DISCOVERED</div>
         <div
-          className="rl-display text-[42px] font-bold leading-none tracking-[0.16em] text-[#f7f1e4]"
+          className="rl-display rl-fluid-md font-bold leading-none text-[#f7f1e4]"
           style={{ textShadow: '0 4px 40px rgba(0,0,0,0.9), 0 0 70px rgba(99,182,255,0.22)' }}
         >
           {d.title}
@@ -623,12 +629,20 @@ function Hint() {
  * Dialogue
  * ------------------------------------------------------------------ */
 
-function Dialogue() {
+function Dialogue({ onPress }: { onPress?: (n: string, down: boolean) => void }) {
   const d = useRealms((s) => s.dialogue);
+  const touch = useTouch();
   if (!d) return null;
   const line = d.lines[Math.min(d.index, d.lines.length - 1)];
+  // Without a keyboard or a mouse button, the panel has to be the button —
+  // and the touch action cluster is hidden while anyone is talking, so if
+  // this were not tappable a conversation would be a dead end.
+  const advance = () => { onPress?.('interact', true); onPress?.('interact', false); };
   return (
-    <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center pb-10 select-none">
+    <div
+      className={`absolute inset-x-0 bottom-0 z-20 flex justify-center pb-10 select-none${touch ? ' pointer-events-auto' : ''}`}
+      onPointerDown={touch ? (e) => { e.preventDefault(); advance(); } : undefined}
+    >
       <div className="rl-panel rl-anim-up w-[720px] max-w-[92vw] rounded-[6px] px-7 py-6">
         <div className="rl-display mb-3 text-[13px] tracking-[0.28em] text-[var(--gold)]/90">
           {line.speaker.toUpperCase()}
@@ -642,7 +656,9 @@ function Dialogue() {
             ))}
           </div>
           <span className="text-[11px] tracking-[0.16em] text-white/40">
-            {d.index < d.lines.length - 1 ? 'F / CLICK — CONTINUE' : 'F / CLICK — END'}
+            {touch
+              ? (d.index < d.lines.length - 1 ? 'TAP TO CONTINUE' : 'TAP TO END')
+              : (d.index < d.lines.length - 1 ? 'F / CLICK — CONTINUE' : 'F / CLICK — END')}
           </span>
         </div>
       </div>
@@ -658,6 +674,26 @@ const RARITY_TEXT: Record<string, string> = {
   common: '#b9c3cf', fine: '#78d59b', rare: '#63b0ff', relic: '#ffb454',
 };
 
+/**
+ * Every full-screen panel is opened and closed with a key, which is a dead end
+ * on a device with no keys. The same control reads as a hint on desktop and as
+ * a button everywhere.
+ */
+function PanelClose({ label, onClose }: { label: string; onClose: () => void }) {
+  const touch = useTouch();
+  if (!touch) {
+    return <span className="text-[11px] tracking-[0.16em] text-white/35">{label}</span>;
+  }
+  return (
+    <button
+      className="pointer-events-auto rounded-[4px] border border-white/20 px-7 py-2.5 text-[11px] tracking-[0.22em] text-white/70 active:bg-white/10"
+      onPointerDown={(e) => { e.preventDefault(); onClose(); }}
+    >
+      CLOSE
+    </button>
+  );
+}
+
 function Journal() {
   const open = useRealms((s) => s.showJournal);
   const quests = useRealms((s) => s.quests);
@@ -670,8 +706,8 @@ function Journal() {
   const mins = Math.floor(playTime / 60);
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-black/55 backdrop-blur-[2px]">
-      <div className="rl-panel rl-anim-up h-[640px] max-h-[86vh] w-[880px] max-w-[94vw] rounded-[8px] p-7">
-        <div className="mb-5 flex items-end justify-between border-b border-white/10 pb-4">
+      <div className="rl-panel rl-anim-up flex h-[640px] max-h-[92vh] w-[880px] max-w-[94vw] flex-col rounded-[8px] p-4 sm:p-7">
+        <div className="mb-4 shrink-0 flex items-end justify-between border-b border-white/10 pb-3">
           <div>
             <div className="rl-display text-[24px] tracking-[0.20em] text-[#f4ecdb]">JOURNAL</div>
             <div className="mt-1 text-[11px] text-white/40">
@@ -696,7 +732,7 @@ function Journal() {
           </div>
         </div>
 
-        <div className="h-[478px] overflow-y-auto pr-2">
+        <div className="min-h-0 grow overflow-y-auto pr-2">
           {tab === 'quests' && (
             <div className="space-y-5">
               {quests.length === 0 && <p className="text-white/40">Nothing yet.</p>}
@@ -753,8 +789,11 @@ function Journal() {
           )}
         </div>
 
-        <div className="mt-4 border-t border-white/10 pt-3 text-center text-[11px] tracking-[0.16em] text-white/35">
-          TAB — CLOSE
+        <div className="mt-3 shrink-0 border-t border-white/10 pt-3 text-center">
+          <PanelClose
+            label="TAB — CLOSE"
+            onClose={() => useRealms.getState().set({ showJournal: false })}
+          />
         </div>
       </div>
     </div>
@@ -765,14 +804,18 @@ function MapOverlay() {
   const open = useRealms((s) => s.showMap);
   const blips = useRealms((s) => s.blips);
   const coords = useRealms((s) => s.coords);
+  // A fixed 620px disc is taller than a phone held sideways, which pushed the
+  // one control that closes it off the bottom of the screen. Size it to
+  // whichever of the two axes runs out first.
+  const vw = useViewport();
   if (!open) return null;
-  const size = 620;
+  const size = Math.max(200, Math.min(620, vw.h - 150, vw.w - 60));
   const range = 1250;
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 backdrop-blur-[2px]">
-      <div className="rl-panel rl-anim-up rounded-[8px] p-6">
-        <div className="mb-4 flex items-baseline justify-between">
-          <span className="rl-display text-[20px] tracking-[0.22em] text-[#f4ecdb]">THE SUNDERED SHELF</span>
+      <div className="rl-panel rl-anim-up rounded-[8px] p-4 sm:p-6">
+        <div className="mb-3 flex items-baseline justify-between gap-6">
+          <span className="rl-display text-[16px] tracking-[0.22em] text-[#f4ecdb] sm:text-[20px]">THE SUNDERED SHELF</span>
           <span className="text-[11px] tabular-nums text-white/35">{coords[0]}, {coords[2]}</span>
         </div>
         <div className="relative overflow-hidden rounded-full border border-white/10"
@@ -801,7 +844,12 @@ function MapOverlay() {
             <svg width="16" height="16" viewBox="0 0 14 14"><path d="M7 0 L12 13 L7 10 L2 13 Z" fill="#f2ecdf" /></svg>
           </div>
         </div>
-        <div className="mt-4 text-center text-[11px] tracking-[0.16em] text-white/35">M — CLOSE</div>
+        <div className="mt-3 text-center">
+          <PanelClose
+            label="M — CLOSE"
+            onClose={() => useRealms.getState().set({ showMap: false })}
+          />
+        </div>
       </div>
     </div>
   );
@@ -811,11 +859,12 @@ function PauseMenu({ onResume }: { onResume: () => void }) {
   const paused = useRealms((s) => s.paused);
   const fps = useRealms((s) => s.fps);
   const quality = useRealms((s) => s.quality);
+  const touch = useTouch();
   if (!paused) return null;
   return (
     <div className="absolute inset-0 z-40 grid place-items-center bg-black/70 backdrop-blur-[3px]">
       <div className="rl-anim-up text-center">
-        <div className="rl-display text-[48px] tracking-[0.34em] text-[#f4ecdb]">PAUSED</div>
+        <div className="rl-display rl-fluid-lg text-[#f4ecdb]">PAUSED</div>
         <div className="mt-3 text-[11px] tracking-[0.24em] text-white/35">
           {fps} FPS · {quality.toUpperCase()} PRESET
         </div>
@@ -826,8 +875,12 @@ function PauseMenu({ onResume }: { onResume: () => void }) {
           Resume
         </button>
         <div className="mt-8 max-w-[420px] text-[11.5px] leading-relaxed text-white/35">
-          WASD move · Shift sprint · Space jump · C or Ctrl dodge · Left click attack ·
-          Right click heavy · F interact · Q lock on · 1/2/3 abilities · Tab journal · M map
+          {touch
+            ? 'Left thumb steers — push to the rim to sprint. Right thumb drags to look, '
+              + 'pinch to zoom. Attack, roll, jump and your three abilities sit under the '
+              + 'right hand; the gold button appears when there is something to use.'
+            : 'WASD move · Shift sprint · Space jump · C or Ctrl dodge · Left click attack · '
+              + 'Right click heavy · F interact · Q lock on · 1/2/3 abilities · Tab journal · M map'}
         </div>
       </div>
     </div>
@@ -840,7 +893,7 @@ function DeathScreen() {
   return (
     <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center">
       <div className="rl-anim-in text-center">
-        <div className="rl-display text-[56px] tracking-[0.32em] text-[#e8bcae]"
+        <div className="rl-display rl-fluid-lg text-[#e8bcae]"
           style={{ textShadow: '0 4px 40px rgba(0,0,0,0.9), 0 0 60px rgba(200,60,40,0.35)' }}>
           YOU FELL
         </div>
@@ -860,7 +913,7 @@ function VictoryScreen() {
     <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center">
       <div className="rl-anim-in text-center">
         <div className="text-[11px] tracking-[0.5em] text-[var(--gold)]/70">THE WARDEN OF THE FALL</div>
-        <div className="mt-3 rl-display text-[62px] tracking-[0.26em] text-[#f7f1e4]"
+        <div className="mt-3 rl-display rl-fluid-lg text-[#f7f1e4]"
           style={{ textShadow: '0 6px 60px rgba(0,0,0,0.85), 0 0 90px rgba(99,182,255,0.32)' }}>
           IS DOWN
         </div>
@@ -888,7 +941,7 @@ export function LoadingScreen() {
   return (
     <div className="absolute inset-0 z-50 grid place-items-center bg-[#04060a]">
       <div className="w-[420px] max-w-[86vw] text-center">
-        <div className="rl-display text-[44px] tracking-[0.42em] text-white/85"
+        <div className="rl-display rl-fluid-md text-white/85"
           style={{ textShadow: '0 0 60px rgba(99,182,255,0.25)' }}>
           REALMS
         </div>
@@ -905,6 +958,7 @@ export function LoadingScreen() {
 
 export function TitleScreen({ onStart }: { onStart: () => void }) {
   const phase = useRealms((s) => s.phase);
+  const touch = useTouch();
   const [fading, setFading] = useState(false);
   if (phase !== 'title') return null;
   return (
@@ -918,14 +972,14 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
       onClick={() => { if (fading) return; setFading(true); onStart(); }}
     >
       <div className="rl-anim-in text-center">
-        <div className="rl-display text-[86px] font-bold leading-none tracking-[0.30em] text-[#f7f1e4]"
+        <div className="rl-display rl-fluid-xl font-bold leading-none text-[#f7f1e4]"
           style={{ textShadow: '0 8px 80px rgba(0,0,0,0.9), 0 0 110px rgba(99,182,255,0.3)' }}>
           REALMS
         </div>
-        <div className="mt-5 text-[12px] tracking-[0.6em] text-white/45">THE SUNDERED SHELF</div>
+        <div className="mt-5 text-[12px] tracking-[0.34em] text-white/45 sm:tracking-[0.6em]">THE SUNDERED SHELF</div>
         <div className="mx-auto mt-10 h-px w-[260px] bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <div className="mt-8 text-[12px] tracking-[0.26em] text-white/40" style={{ animation: 'rl-pulse 2.6s ease-in-out infinite' }}>
-          CLICK TO BEGIN
+          {touch ? 'TAP TO BEGIN' : 'CLICK TO BEGIN'}
         </div>
       </div>
     </div>
@@ -936,39 +990,295 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
  * Touch controls
  * ------------------------------------------------------------------ */
 
-export function TouchControls({ onPress }: { onPress: (name: string, down: boolean) => void }) {
-  const [touch, setTouch] = useState(false);
+/**
+ * The virtual stick, drawn where the thumb actually landed.
+ *
+ * Its position changes every frame a thumb is down, so it is written straight
+ * to the DOM from a rAF loop rather than through component state — pushing
+ * that through React would re-render the entire HUD sixty times a second to
+ * move one circle. The ring fades in under the thumb and follows it out to a
+ * rim; reaching the rim is what sprints, so the rim lights up when it does.
+ */
+function TouchStick() {
+  const ring = useRef<HTMLDivElement | null>(null);
+  const knob = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    const check = () => setTouch(window.matchMedia('(pointer: coarse)').matches);
-    check();
+    let raf = 0;
+    let seen = -1;
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      if (touchStick.version === seen) return;
+      seen = touchStick.version;
+      const r = ring.current, k = knob.current;
+      if (!r || !k) return;
+      if (!touchStick.active) { r.style.opacity = '0'; k.style.opacity = '0'; return; }
+      r.style.opacity = '1';
+      k.style.opacity = '1';
+      r.style.transform = `translate3d(${touchStick.ox - STICK_R}px, ${touchStick.oy - STICK_R}px, 0)`;
+      r.style.borderColor = touchStick.sprint ? 'rgba(167,220,255,0.75)' : 'rgba(190,220,255,0.28)';
+      r.style.boxShadow = touchStick.sprint ? '0 0 26px rgba(99,182,255,0.35)' : 'none';
+      k.style.transform =
+        `translate3d(${touchStick.ox + touchStick.dx - 26}px, ${touchStick.oy + touchStick.dy - 26}px, 0)`;
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
   }, []);
+
+  return (
+    <>
+      <div
+        ref={ring}
+        className="pointer-events-none fixed top-0 left-0 rounded-full border-2"
+        style={{
+          width: STICK_R * 2, height: STICK_R * 2, opacity: 0,
+          background: 'radial-gradient(circle, rgba(10,16,26,0.30), rgba(10,16,26,0.06) 70%)',
+          borderColor: 'rgba(190,220,255,0.28)',
+          transition: 'opacity 160ms ease, border-color 140ms ease, box-shadow 140ms ease',
+        }}
+      />
+      <div
+        ref={knob}
+        className="pointer-events-none fixed top-0 left-0 rounded-full"
+        style={{
+          width: 52, height: 52, opacity: 0,
+          background: 'radial-gradient(circle at 40% 35%, rgba(214,234,255,0.80), rgba(120,160,205,0.42))',
+          boxShadow: '0 3px 14px rgba(0,0,0,0.5)',
+          transition: 'opacity 160ms ease',
+        }}
+      />
+    </>
+  );
+}
+
+/**
+ * Subscribe to a media query. useSyncExternalStore rather than an effect so
+ * the first client render already has the right answer and the HUD never
+ * flashes its desktop layout on a phone.
+ */
+function useMedia(query: string) {
+  const subscribe = useCallback((cb: () => void) => {
+    const m = window.matchMedia(query);
+    m.addEventListener('change', cb);
+    return () => m.removeEventListener('change', cb);
+  }, [query]);
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,           // server render: assume the desktop layout
+  );
+}
+
+/** True on a touch device. */
+export function useTouch() { return useMedia('(pointer: coarse)'); }
+
+/** Live viewport size, for panels that have to be sized rather than clamped. */
+function useViewport() {
+  const subscribe = useCallback((cb: () => void) => {
+    window.addEventListener('resize', cb);
+    window.addEventListener('orientationchange', cb);
+    return () => {
+      window.removeEventListener('resize', cb);
+      window.removeEventListener('orientationchange', cb);
+    };
+  }, []);
+  const snap = useSyncExternalStore(
+    subscribe,
+    () => `${window.innerWidth}x${window.innerHeight}`,
+    () => '1280x720',
+  );
+  const [w, h] = snap.split('x').map(Number);
+  return { w, h };
+}
+
+/**
+ * Landscape is not a preference here. A third-person camera in a portrait
+ * window shows the character's shoulders and almost none of the world it is
+ * standing in, and the two thumb zones end up stacked on top of each other.
+ */
+function RotatePrompt() {
+  const touch = useTouch();
+  const portrait = useMedia('(orientation: portrait)');
+  const [dismissed, setDismissed] = useState(false);
+  if (!touch || !portrait || dismissed) return null;
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-50 grid place-items-center bg-[#04060a]/95 px-8 text-center">
+      <div>
+        <div className="mx-auto mb-6 h-[54px] w-[86px] rounded-[8px] border-2 border-white/30" style={{ animation: 'rl-rotate-hint 2.4s ease-in-out infinite' }} />
+        <div className="rl-display text-[22px] tracking-[0.22em] text-[#f3ecdd]">TURN YOUR DEVICE</div>
+        <div className="mt-3 text-[12px] leading-relaxed text-white/45">REALMS is built for landscape.</div>
+        <button
+          className="pointer-events-auto mt-8 rounded-[4px] border border-white/15 px-5 py-2.5 text-[11px] tracking-[0.2em] text-white/50 active:bg-white/10"
+          onClick={() => setDismissed(true)}
+        >
+          PLAY ANYWAY
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function TouchControls({ onPress }: { onPress: (name: string, down: boolean) => void }) {
+  const touch = useTouch();
   const phase = useRealms((s) => s.phase);
-  if (!touch || (phase !== 'playing' && phase !== 'dead')) return null;
-  const btn = (name: string, label: string, cls: string) => (
+  const prompt = useRealms((s) => s.prompt);
+  const dialogue = useRealms((s) => s.dialogue);
+  const abilities = useRealms((s) => s.abilities);
+  const energy = useRealms((s) => s.energy);
+  const paused = useRealms((s) => s.paused);
+  const showMap = useRealms((s) => s.showMap);
+  const showJournal = useRealms((s) => s.showJournal);
+  if (!touch) return null;
+  const live = (phase === 'playing' || phase === 'dead') && !paused && !showMap && !showJournal;
+  return (
+    <>
+      <RotatePrompt />
+      {live && !dialogue && (
+        <div className="pointer-events-none absolute inset-0 z-20 select-none">
+          <TouchStick />
+          {/* Everything the right thumb needs, in one cluster it can reach
+              without the hand moving: abilities on the upper row, the three
+              things you do constantly on the lower one, attack the largest
+              and closest to where the thumb rests. */}
+          <div
+            className="absolute"
+            style={{
+              right: 'calc(env(safe-area-inset-right, 0px) + 16px)',
+              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
+            }}
+          >
+            <div className="relative" style={{ width: 210, height: 124 }}>
+              {abilities.slice(0, 3).map((a, i) => (
+                <TouchAbility key={a.id} ability={a} energy={energy} x={i * 58} y={0} onPress={onPress} />
+              ))}
+              <TouchBtn name="lockOn" label="Lock" size={44} x={166} y={3} onPress={onPress} />
+              <TouchBtn name="dodge" label="Roll" size={58} x={0} y={64} onPress={onPress} />
+              <TouchBtn name="attack" label="Attack" size={82} x={64} y={40} onPress={onPress} primary />
+              <TouchBtn name="jump" label="Jump" size={58} x={152} y={64} onPress={onPress} />
+            </div>
+          </div>
+          {prompt && (
+            <button
+              className="rl-panel pointer-events-auto absolute grid place-items-center rounded-full border-[#d9b978]/50 text-[11px] uppercase tracking-[0.12em] text-[#f3ecdd] active:bg-white/15"
+              style={{
+                width: 66, height: 66,
+                right: 'calc(env(safe-area-inset-right, 0px) + 236px)',
+                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 58px)',
+                animation: 'rl-pulse 1.6s ease-in-out infinite',
+              }}
+              onPointerDown={(e) => { e.preventDefault(); onPress('interact', true); }}
+              onPointerUp={(e) => { e.preventDefault(); onPress('interact', false); }}
+            >
+              Use
+            </button>
+          )}
+          {/* Menu, map and journal are keys on a keyboard. Here they are a
+              column tucked into the top-left corner, clear of both thumbs. */}
+          <div
+            className="absolute flex flex-col gap-1.5"
+            style={{
+              left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
+              top: 'calc(env(safe-area-inset-top, 0px) + 10px)',
+            }}
+          >
+            <TouchIcon name="pause" label="Menu" onPress={onPress}>
+              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+            </TouchIcon>
+            <TouchIcon name="map" label="Map" onPress={onPress}>
+              <path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4Zm0 0v13m6 2.5v-13" strokeLinejoin="round" />
+            </TouchIcon>
+            <TouchIcon name="journal" label="Journal" onPress={onPress}>
+              <path d="M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2v-13Zm0 0v13m4-9h6m-6 4h6" strokeLinejoin="round" />
+            </TouchIcon>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** An ability button carrying its own cooldown sweep and readiness state. */
+function TouchAbility({
+  ability, energy, x, y, onPress,
+}: {
+  ability: { id: string; key: string; cooldown: number; cooldownMax: number; cost: number };
+  energy: number; x: number; y: number;
+  onPress: (n: string, down: boolean) => void;
+}) {
+  const cooling = ability.cooldown > 0.001;
+  const ready = !cooling && energy >= ability.cost;
+  const slot = ability.key;
+  return (
     <button
-      key={name}
-      className={`rl-panel pointer-events-auto grid place-items-center rounded-full text-[11px] uppercase tracking-[0.1em] text-white/75 active:bg-white/15 ${cls}`}
-      onPointerDown={(e) => { e.preventDefault(); onPress(name, true); }}
-      onPointerUp={(e) => { e.preventDefault(); onPress(name, false); }}
+      className="rl-panel pointer-events-auto absolute grid place-items-center overflow-hidden rounded-full active:bg-white/20"
+      style={{
+        width: 50, height: 50, left: x, top: y,
+        borderColor: ready ? 'rgba(99,182,255,0.45)' : 'rgba(140,175,215,0.14)',
+      }}
+      aria-label={`Ability ${slot}`}
+      onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onPress(`ability${slot}`, true); }}
+      onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); onPress(`ability${slot}`, false); }}
+      onPointerCancel={() => onPress(`ability${slot}`, false)}
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" style={{ opacity: ready ? 1 : 0.32 }}>
+        <path d={ABILITY_GLYPH[ability.id]} fill="none" stroke={ready ? '#a7dcff' : '#7c93ad'} strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+      {cooling && (
+        <>
+          <span
+            className="absolute inset-0 bg-black/62"
+            style={{ clipPath: `inset(0 0 ${(1 - ability.cooldown / ability.cooldownMax) * 100}% 0)` }}
+          />
+          <span className="absolute inset-0 grid place-items-center text-[13px] font-semibold tabular-nums text-white/85">
+            {ability.cooldown.toFixed(0)}
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
+function TouchIcon({
+  name, label, onPress, children,
+}: {
+  name: string; label: string;
+  onPress: (n: string, down: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      className="rl-panel pointer-events-auto grid h-[34px] w-[38px] place-items-center rounded-[6px] text-white/55 active:bg-white/15"
+      aria-label={label}
+      onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onPress(name, true); }}
+      onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); onPress(name, false); }}
+    >
+      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" stroke="currentColor" strokeWidth="1.6" fill="none">
+        {children}
+      </svg>
+    </button>
+  );
+}
+
+function TouchBtn({
+  name, label, size, x, y, onPress, primary = false,
+}: {
+  name: string; label: string; size: number; x: number; y: number;
+  onPress: (n: string, down: boolean) => void; primary?: boolean;
+}) {
+  return (
+    <button
+      className="rl-panel pointer-events-auto absolute grid place-items-center rounded-full uppercase tracking-[0.1em] text-white/75 active:bg-white/20"
+      style={{
+        width: size, height: size, left: x, top: y,
+        fontSize: primary ? 12 : 10,
+        borderColor: primary ? 'rgba(99,182,255,0.40)' : undefined,
+      }}
+      onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onPress(name, true); }}
+      onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); onPress(name, false); }}
+      onPointerCancel={() => onPress(name, false)}
     >
       {label}
     </button>
-  );
-  return (
-    <div className="pointer-events-none absolute inset-0 z-20">
-      <div className="absolute bottom-6 right-6 grid grid-cols-3 gap-2" style={{ width: 230 }}>
-        {btn('attack', 'Hit', 'h-[70px] w-[70px] col-start-2')}
-        {btn('dodge', 'Roll', 'h-[58px] w-[58px] col-start-1 row-start-2')}
-        {btn('jump', 'Jump', 'h-[58px] w-[58px] col-start-3 row-start-2')}
-        {btn('interact', 'F', 'h-[52px] w-[52px] col-start-2 row-start-3')}
-      </div>
-      <div className="absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-2">
-        {btn('ability1', '1', 'h-[46px] w-[46px]')}
-        {btn('ability2', '2', 'h-[46px] w-[46px]')}
-        {btn('ability3', '3', 'h-[46px] w-[46px]')}
-        {btn('sprint', 'Run', 'h-[46px] w-[46px]')}
-      </div>
-    </div>
   );
 }
 
@@ -991,12 +1301,13 @@ function DebugStats() {
   );
 }
 
-export function Hud({ onResume }: { onResume: () => void }) {
+export function Hud({ onResume, onPress }: { onResume: () => void; onPress: (n: string, down: boolean) => void }) {
   const phase = useRealms((s) => s.phase);
+  const touch = useTouch();
   const visible = phase === 'playing' || phase === 'dead' || phase === 'victory';
   const dim = phase === 'dead' || phase === 'victory';
   return (
-    <div className="pointer-events-none absolute inset-0 z-10 font-sans">
+    <div className={`pointer-events-none absolute inset-0 z-10 font-sans${touch ? ' rl-touch' : ''}`}>
       <CinematicTitle />
       <ObjectiveBanner />
       {visible && (
@@ -1006,7 +1317,10 @@ export function Hud({ onResume }: { onResume: () => void }) {
           <Discovery />
           <QuestTracker />
           <Vitals />
-          <Abilities />
+          {/* On touch the abilities live in the right-thumb cluster, with
+              their cooldowns on them; a second row would be the same three
+              buttons twice. */}
+          {!touch && <Abilities />}
           <BossBar />
           <InteractPrompt />
           <Reticle />
@@ -1015,7 +1329,7 @@ export function Hud({ onResume }: { onResume: () => void }) {
       )}
       <Toasts />
       <DamageNumbers />
-      <div className="pointer-events-auto"><Dialogue /></div>
+      <div className="pointer-events-auto"><Dialogue onPress={onPress} /></div>
       <div className="pointer-events-auto"><Journal /></div>
       <div className="pointer-events-auto"><MapOverlay /></div>
       <div className="pointer-events-auto"><PauseMenu onResume={onResume} /></div>

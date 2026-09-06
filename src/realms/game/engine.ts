@@ -48,9 +48,28 @@ export class Engine {
   private adaptive = true;
   quality: Quality = 'high';
   private renderScale = 1;
+  /**
+   * Phones lie about their pixel ratio for our purposes: a 3x display on a
+   * mobile GPU means nine times the fragments for a screen held at arm's
+   * length. Cap it well below what the device reports and let the adaptive
+   * governor take it from there.
+   */
+  private maxPixelRatio = 2;
 
   constructor(container: HTMLElement) {
     this.container = container;
+    // Start a touch device conservatively. The governor can climb back up
+    // within a few seconds if the hardware turns out to be quick, and that is
+    // a far better first impression than four seconds of slideshow while it
+    // works out that it is not.
+    const coarse = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches;
+    if (coarse) {
+      this.quality = 'low';
+      this.renderScale = 0.7;
+      this.maxPixelRatio = 1.5;
+    }
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;';
     container.appendChild(canvas);
@@ -131,7 +150,7 @@ export class Engine {
     const h = this.container.clientHeight || window.innerHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    const pr = Math.min(window.devicePixelRatio || 1, 2) * this.renderScale;
+    const pr = Math.min(window.devicePixelRatio || 1, this.maxPixelRatio) * this.renderScale;
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
     this.post.setSize(w, h, pr);

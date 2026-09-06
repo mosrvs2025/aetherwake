@@ -72,7 +72,7 @@ html, body { margin: 0; height: 100%; background: #04060a; overflow: hidden; }
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="A third-person fantasy action RPG that runs in a browser tab. Nothing is downloaded: the world is generated in code.">
 ${body}
 </head>
