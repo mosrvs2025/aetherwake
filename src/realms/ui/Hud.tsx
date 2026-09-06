@@ -17,15 +17,15 @@ import { useRealms, type CompassMark, type MinimapBlip } from '../game/state';
  * ------------------------------------------------------------------ */
 
 function Bar({
-  value, max, color, glow, height = 10, label, showText = false, ghost = true,
+  value, max, color, glow, height = 10, label, showText = false, ghost = true, pulse = false,
 }: {
   value: number; max: number; color: string; glow?: string; height?: number;
-  label?: string; showText?: boolean; ghost?: boolean;
+  label?: string; showText?: boolean; ghost?: boolean; pulse?: boolean;
 }) {
   const pct = Math.max(0, Math.min(1, max > 0 ? value / max : 0)) * 100;
   return (
     <div className="relative">
-      <div className="rl-bar rounded-[3px]" style={{ height }}>
+      <div className={`rl-bar rounded-[3px]${pulse ? ' rl-anim-pulse' : ''}`} style={{ height }}>
         {ghost && (
           <div
             className="rl-bar-ghost"
@@ -89,7 +89,7 @@ function Vitals() {
 
       <div className="w-[286px] space-y-[5px] pb-1">
         <Bar
-          value={hp} max={hpMax} height={16} label="Vitality" showText
+          value={hp} max={hpMax} height={16} label="Vitality" showText pulse={low}
           color={low
             ? 'linear-gradient(90deg,#ff5a4a,#ff8a5c)'
             : 'linear-gradient(90deg,#c9372c,#e86a4a 60%,#f0a06a)'}
@@ -122,6 +122,30 @@ const ABILITY_GLYPH: Record<string, string> = {
 function Abilities() {
   const abilities = useRealms((s) => s.abilities);
   const energy = useRealms((s) => s.energy);
+  // A ring that fires the moment an ability goes on cooldown. Pressing a key
+  // and watching a number appear is information; the flash is acknowledgement,
+  // and the two are not the same thing.
+  //
+  // Driven off a store subscription rather than a render-time comparison, so
+  // the rising edge is caught exactly once however often the HUD re-renders.
+  const [fired, setFired] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const last: Record<string, number> = {};
+    return useRealms.subscribe((st) => {
+      const rising: string[] = [];
+      for (const a of st.abilities) {
+        if ((last[a.id] ?? 0) < 0.05 && a.cooldown > 0.05) rising.push(a.id);
+        last[a.id] = a.cooldown;
+      }
+      if (rising.length) {
+        setFired((f) => {
+          const next = { ...f };
+          for (const id of rising) next[id] = (next[id] ?? 0) + 1;
+          return next;
+        });
+      }
+    });
+  }, []);
   return (
     <div className="pointer-events-none absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-[26px] select-none">
       {abilities.map((a) => {
@@ -153,6 +177,12 @@ function Abilities() {
                 </span>
               )}
             </div>
+            {fired[a.id] ? (
+              <span
+                key={fired[a.id]}
+                className="rl-anim-cast pointer-events-none absolute -inset-1 rounded-[9px] border border-[#a7dcff]"
+              />
+            ) : null}
             <span className="absolute -top-1.5 -left-1.5 grid h-[19px] w-[19px] place-items-center rounded-[4px] border border-white/15 bg-black/80 text-[10px] font-bold text-white/75">
               {a.key}
             </span>

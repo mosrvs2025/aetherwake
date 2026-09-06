@@ -85,6 +85,11 @@ export class Enemy {
   aggroSlot = -1;
   lastHitTime = -99;
   flash = 0;
+  /** Materials that take the white impact flash. Not the energy channel. */
+  flashMats: THREE.MeshStandardMaterial[] = [];
+  /** Recoil from the last blow, in the enemy's own frame. Decays to zero. */
+  leanBack = 0;
+  leanSide = 0;
   height: number;
   radius: number;
   scale: number;
@@ -113,6 +118,9 @@ export class Enemy {
       const built = buildEnemy(kind)!;
       this.character = built.character;
       this.group = built.character.group;
+      // buildEnemy makes a fresh material set per enemy (sharing programs via
+      // the cache key), so one of them can flash without lighting up the rest.
+      this.flashMats = built.materials.all.filter((m) => m !== built.materials.energy);
       this.weaponTip = built.weaponTip;
       this.height = built.height;
       this.radius = built.radius;
@@ -148,6 +156,14 @@ export class Enemy {
     const d = Math.hypot(dx, dz) || 1;
     this.vel.x += (dx / d) * knockback;
     this.vel.z += (dz / d) * knockback;
+
+    // Recoil in the enemy's own frame, so a blow from behind pitches it
+    // forward and one from the flank throws it sideways. Knockback alone
+    // slides a body across the ground without it ever reacting.
+    const nx = dx / d, nz = dz / d;
+    const impact = Math.min(1, amount / 26 + 0.35);
+    this.leanBack = -(nx * Math.sin(this.yaw) + nz * Math.cos(this.yaw)) * 0.26 * impact;
+    this.leanSide = (nx * Math.cos(this.yaw) - nz * Math.sin(this.yaw)) * 0.26 * impact;
     const color = this.kind === 'stalker' ? EMBER : this.kind === 'warden' ? AETHER : WRAITH;
     fx.hitSpark(this.pos.x, this.pos.y + this.height * 0.6, this.pos.z, dx / d, dz / d, 1, color);
     fx.bloodBurst(this.pos.x, this.pos.y + this.height * 0.6, this.pos.z, dx / d, dz / d, color.clone().multiplyScalar(0.6));
@@ -394,8 +410,21 @@ export class Combat {
     e.vel.z *= drag;
     e.yaw = dampAngle(e.yaw, e.wantYaw, e.kind === 'warden' ? 3.2 : 7.5, dt);
     e.group.position.copy(e.pos);
-    e.group.rotation.y = e.yaw;
-    e.flash = Math.max(0, e.flash - dt * 4);
+    // YXZ so the recoil reads in the body's own frame rather than the world's
+    e.group.rotation.order = 'YXZ';
+    e.group.rotation.set(e.leanBack, e.yaw, e.leanSide);
+    const settle = Math.exp(-7.5 * dt);
+    e.leanBack *= settle;
+    e.leanSide *= settle;
+
+    // The white flash. Two frames of it is all a hit needs to register as
+    // having connected with a body rather than with the air in front of it.
+    const wasFlashing = e.flash > 0.001;
+    e.flash = Math.max(0, e.flash - dt * 5.5);
+    if (wasFlashing || e.flash > 0.001) {
+      const f = e.flash * e.flash * 0.85;
+      for (const m of e.flashMats) m.emissive.setRGB(f * 1.15, f * 1.02, f * 0.90);
+    }
   }
 
   private moveToward(e: Enemy, tx: number, tz: number, speed: number, dt: number) {
