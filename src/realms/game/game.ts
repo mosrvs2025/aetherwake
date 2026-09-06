@@ -25,7 +25,7 @@ import {
   LANDMARKS, REGIONS, START_POS, LAKE_Y, RARITY_COLOR,
   type LootRarity,
 } from '../world/atlas';
-import { terrainHeight, riverDistance } from '../world/heightfield';
+import { terrainHeight, terrainSlope, riverDistance } from '../world/heightfield';
 import { clamp01, damp, lerp, smoothstep, Random } from '../core/math';
 import { AETHER } from '../chars/materials';
 
@@ -384,6 +384,27 @@ export class Game {
     this.quests.sync();
   }
 
+  /**
+   * Which footfall the ground under the player warrants. The most repeated
+   * sound in the game is also the fastest way to make a world feel synthetic,
+   * and the world data map already knows what is underfoot.
+   */
+  private surfaceStep(wet: boolean) {
+    if (wet) return 'stepWater';
+    const { x, z } = this.player.pos;
+    if (this.world.data?.roadAt(x, z) > 0.45) return 'stepDirt';
+    const y = this.player.pos.y;
+    // above the tree line and on anything steep it is bare rock
+    if (y > 214 || terrainSlope(x, z) > 0.40) return 'stepStone';
+    // a boarded floor: the village, the bridge, the keep's galleries
+    if (this.blockedStructure(x, z)) return 'stepWood';
+    return 'stepGrass';
+  }
+
+  private blockedStructure(x: number, z: number) {
+    return this.world.blockedAt(x, z) > 0.5;
+  }
+
   private hookPlayer() {
     this.player.onAttack = (e) => {
       const hits = this.combat.resolvePlayerAttack(e, this.player);
@@ -407,7 +428,8 @@ export class Game {
     };
     this.player.onFootstep = (foot, speed) => {
       const wet = this.player.inWater > 0.15;
-      audio.sfx(wet ? 'step' : 'stepGrass', 0.5 + Math.min(0.5, speed / 12));
+      audio.sfx(this.surfaceStep(wet), 0.5 + Math.min(0.5, speed / 12));
+      if (wet) this.fx.ripple(this.player.pos.x, this.player.pos.z, speed);
       this.fx.footDust(
         this.player.pos.x + Math.sin(this.player.yaw + (foot ? 1.4 : -1.4)) * 0.25,
         this.player.pos.y, this.player.pos.z + Math.cos(this.player.yaw + (foot ? 1.4 : -1.4)) * 0.25,

@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { ATMO_PARS, atmo } from '../core/atmosphere';
 import { Textures } from '../world/textures';
+import { LAKE_Y } from '../world/atlas';
 
 const PART_VERT = /* glsl */ `
 attribute vec4 iPos;     // xyz = world position, w = size
@@ -323,6 +324,7 @@ const C_DUST = new THREE.Color('#c8bda6');
 const C_MIST = new THREE.Color('#dfeaf2');
 const C_WRAITH = new THREE.Color('#c07dff');
 const C_BLOOD = new THREE.Color('#6d1420');
+const C_FOAM = new THREE.Color('#eaf5ff');
 
 export class Fx {
   group = new THREE.Group();
@@ -421,6 +423,37 @@ export class Fx {
         vx: Math.cos(a) * radius * 1.5, vy: 0.9 + Math.random() * 1.6, vz: Math.sin(a) * radius * 1.5,
         size: 0.7, sizeEnd: 3.4, color: C_DUST, alpha: 0.34,
         life: 0.7, gravity: -0.5, drag: 2.6, spin: 1.4,
+      });
+    }
+  }
+
+  /**
+   * Wading. A ring of droplets thrown outward at the waterline plus the flat
+   * disc of disturbed water under it — the ring is what the eye reads as a
+   * splash, the disc is what makes it look like it happened *in* something.
+   */
+  ripple(x: number, z: number, speed: number) {
+    const y = LAKE_Y;
+    const power = Math.min(1, 0.35 + speed / 9);
+    const n = Math.round(7 + power * 9);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 0.9 + Math.random() * 1.5;
+      this.additive.spawn({
+        x: x + Math.cos(a) * 0.12, y: y + 0.05, z: z + Math.sin(a) * 0.12,
+        vx: Math.cos(a) * r * power, vy: 1.5 + Math.random() * 2.0 * power, vz: Math.sin(a) * r * power,
+        size: 0.055 + Math.random() * 0.05, sizeEnd: 0.012,
+        color: C_FOAM, colorEnd: C_FOAM,
+        life: 0.34 + Math.random() * 0.22, gravity: 9.2, drag: 0.9, alpha: 0.65,
+      });
+    }
+    for (let i = 0; i < 3; i++) {
+      this.soft.spawn({
+        x, y: y + 0.02, z,
+        vx: 0, vy: 0.02, vz: 0,
+        size: 0.35 + i * 0.2, sizeEnd: 1.9 + i * 0.8,
+        color: C_FOAM, alpha: 0.20 * power,
+        life: 0.55 + i * 0.18, gravity: 0, drag: 1.0, spin: 0.4,
       });
     }
   }

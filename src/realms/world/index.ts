@@ -74,7 +74,8 @@ export class World {
 
   constructor(private physics: Physics) {}
 
-  private blockedAt(x: number, z: number) {
+  /** Whether a point is already occupied by a building or ruin footprint. */
+  blockedAt(x: number, z: number) {
     for (const [ex, ez, er] of EXCLUSIONS) {
       if ((x - ex) ** 2 + (z - ez) ** 2 < er * er) return 1;
     }

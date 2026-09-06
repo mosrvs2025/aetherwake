@@ -451,6 +451,25 @@ export class AudioEngine {
       case 'stepGrass':
         this.noiseBurst(0.11, 'highpass', 1800, 2600, 0.035 * vol, 0.7);
         break;
+      // A footfall is the most repeated sound in the game, so it is also the
+      // fastest way to make a world feel synthetic. These differ in where
+      // their energy sits: grit is broadband and short, stone rings a little,
+      // wood is hollow and low, water splashes wide and decays slowly.
+      case 'stepDirt':
+        this.noiseBurst(0.10, 'bandpass', 620 + Math.random() * 260, 420, 0.048 * vol, 1.0);
+        break;
+      case 'stepStone':
+        this.noiseBurst(0.07, 'highpass', 2400, 3400, 0.040 * vol, 0.9);
+        this.tone(2100 + Math.random() * 700, 0.05, 0.016 * vol, 'triangle', 2.4);
+        break;
+      case 'stepWood':
+        this.noiseBurst(0.09, 'bandpass', 340 + Math.random() * 140, 260, 0.042 * vol, 1.1);
+        this.tone(150 + Math.random() * 50, 0.09, 0.026 * vol, 'sine', 1.6);
+        break;
+      case 'stepWater':
+        this.noiseBurst(0.24, 'bandpass', 1500 + Math.random() * 900, 2400, 0.060 * vol, 0.55);
+        this.noiseBurst(0.10, 'lowpass', 700, 300, 0.030 * vol, 1.0);
+        break;
       case 'pickup':
         this.tone(880, 0.14, 0.10 * vol, 'sine', 1.5);
         this.tone(1320, 0.22, 0.07 * vol, 'sine', 1.4, 0.06);
