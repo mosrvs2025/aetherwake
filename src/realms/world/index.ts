@@ -37,6 +37,44 @@ export interface BuildStage {
   run: () => void;
 }
 
+/**
+ * How much world to draw.
+ *
+ * The quality presets used to change only the render scale, the shadow map
+ * and the post chain — every preset still submitted the same 580 draws and
+ * 4.6 million triangles. On a desktop GPU that is fine and resolution is the
+ * lever that matters; on a phone the geometry *is* the frame time, and no
+ * amount of rendering it smaller helps. These are the levers that actually
+ * remove work: how far the forest draws, how much grass exists, and how
+ * quickly the terrain drops to a coarser mesh.
+ */
+export interface SceneScale {
+  /** Metres beyond which a tree bucket is not drawn at all. */
+  treeDistance: number;
+  /** Metres within which scatter buckets cast into the shadow map. */
+  shadowRadius: number;
+  /** Multiplier on the terrain's LOD band distances. */
+  terrainLod: number;
+  /** Grass ring: tiles of radius, and blades per tile. */
+  grassTiles: number;
+  grassPerTile: number;
+  /** Far cutoff for ground cover, in metres. */
+  grassFade: number;
+  /** Fern ring radius in tiles. */
+  fernTiles: number;
+  /** Ambient dust motes. */
+  motes: number;
+}
+
+export const SCENE_SCALE: Record<'low' | 'medium' | 'high' | 'ultra', SceneScale> = {
+  // Tuned for a phone: the forest still closes the horizon because the fog
+  // reaches it first, so the cut is invisible from the ground.
+  low:    { treeDistance: 250, shadowRadius: 80,  terrainLod: 0.50, grassTiles: 4, grassPerTile: 300, grassFade: 30, fernTiles: 3, motes: 220 },
+  medium: { treeDistance: 380, shadowRadius: 120, terrainLod: 0.75, grassTiles: 5, grassPerTile: 430, grassFade: 38, fernTiles: 4, motes: 420 },
+  high:   { treeDistance: 560, shadowRadius: 165, terrainLod: 1.00, grassTiles: 6, grassPerTile: 520, grassFade: 46, fernTiles: 4, motes: 700 },
+  ultra:  { treeDistance: 760, shadowRadius: 200, terrainLod: 1.25, grassTiles: 7, grassPerTile: 560, grassFade: 54, fernTiles: 5, motes: 900 },
+};
+
 /** Areas where nothing should be scattered (buildings, roads, arenas). */
 const EXCLUSIONS: Array<[number, number, number]> = [
   [-140, 250, 58],     // Amberfell
@@ -65,6 +103,13 @@ export class World {
   points: InteractPoint[] = [];
   /** Where the roadside scenes landed — used by dev tooling to frame them. */
   wayside: Array<{ kind: string; x: number; y: number; z: number }> = [];
+  /**
+   * Set before `stages()` runs. Grass and fern rings are sized once at build
+   * time because their instance buffers are allocated up front; draw distance
+   * and terrain LOD are re-read every frame, so the governor can still move
+   * those while the player is walking.
+   */
+  scale: SceneScale = SCENE_SCALE.high;
   islandTops: Array<{ x: number; y: number; z: number }> = [];
   treeCount = 0;
   private scatters: InstancedScatter[] = [];
@@ -252,7 +297,7 @@ export class World {
             color: '#ffffff', map: Textures.grass, alphaTest: 0.28, alphaOnly: true,
             vertexColors: true,
             side: THREE.DoubleSide, roughness: 0.9, key: 'grass', windAmp: 0.10,
-            clumpFade: [2.6, 46], normalUp: 0.88, translucency: 0.55,
+            clumpFade: [2.6, this.scale.grassFade], normalUp: 0.88, translucency: 0.55,
           });
           const density = (x: number, z: number) => {
             const h = terrainHeight(x, z);
@@ -277,7 +322,7 @@ export class World {
           this.debugNoGrass = q.has('nograss');
           this.debugNoFlowers = q.has('noflowers');
           this.grass = new GrassField(grassClumpGeometry(0.52, 0.40), grassMat, {
-            tileSize: 6, radiusTiles: 6, perTile: 520,
+            tileSize: 6, radiusTiles: this.scale.grassTiles, perTile: this.scale.grassPerTile,
             density: grassDensity,
             scale: [0.60, 1.15],
             colorA: new THREE.Color('#55723c'),
@@ -293,7 +338,7 @@ export class World {
             clumpFade: [5.0, 58], normalUp: 0.80, translucency: 0.50,
           });
           this.flowers = new GrassField(grassClumpGeometry(0.80, 1.05), fernMat, {
-            tileSize: 14, radiusTiles: 4, perTile: 34,
+            tileSize: 14, radiusTiles: this.scale.fernTiles, perTile: 34,
             density: (x, z) => density(x, z) * 0.5,
             scale: [0.5, 1.05],
             colorA: new THREE.Color('#425c2f'),
@@ -331,7 +376,7 @@ export class World {
           this.birds = new Birds(flocks);
           this.group.add(this.birds.mesh);
 
-          this.motes = new SunMotes(700, 46);
+          this.motes = new SunMotes(this.scale.motes, 46);
           this.group.add(this.motes.mesh);
 
           const critterMat = applyAtmosphere(new THREE.MeshStandardMaterial({
@@ -346,7 +391,10 @@ export class World {
 
   update(camera: THREE.Camera, playerX: number, playerZ: number) {
     // only the buckets the sun's frustum can reach need to cast
-    for (const sc of this.scatters) sc.updateShadowLod(playerX, playerZ, 165);
+    for (const sc of this.scatters) {
+      sc.updateVisibility(playerX, playerZ, this.scale.treeDistance, this.scale.shadowRadius);
+    }
+    if (this.terrain) this.terrain.lodScale = this.scale.terrainLod;
     if (this.sky) this.sky.mesh.position.copy(camera.position);
     if (this.cloudSea) {
       this.cloudSea.mesh.position.x = camera.position.x;

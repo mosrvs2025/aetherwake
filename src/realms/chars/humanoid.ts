@@ -25,9 +25,16 @@ export interface HumanoidProfile {
   hunch: number;         // forward lean baked into the bind pose
 }
 
+/**
+ * Heroic rather than anatomical. A realistic 1:7.5 head-to-height figure reads
+ * as slightly dumpy at gameplay distance, where the silhouette is all you
+ * have. Widening the shoulders against a narrow hip, shrinking the head a few
+ * per cent and lengthening the legs is the standard correction, and it costs
+ * nothing — every one of these is a number the rig already reads.
+ */
 export const PLAYER_PROFILE: HumanoidProfile = {
-  height: 1.86, shoulder: 0.235, hip: 0.135, bulk: 1.0,
-  neck: 0.055, headScale: 1.0, armLength: 1.0, legLength: 1.0, hunch: 0.0,
+  height: 1.86, shoulder: 0.262, hip: 0.128, bulk: 1.04,
+  neck: 0.055, headScale: 0.93, armLength: 1.0, legLength: 1.05, hunch: 0.0,
 };
 
 export function humanoidBones(p: HumanoidProfile): BoneDef[] {

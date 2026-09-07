@@ -177,6 +177,14 @@ export function roundedBox(w: number, h: number, d: number, round = 0.35, seg = 
  * matters is not detail but *shadow*: a brow ridge with sockets under it, a
  * nose to break the profile, cheekbones, and a jaw. Those catch the light and
  * do the work that a texture would otherwise have to fake.
+ *
+ * The whole thing is written in a local `f` axis that points out of the face,
+ * rather than in raw z. The humanoid rig walks toward -Z — check the toes,
+ * which sit forward of their ankles at negative z — and an earlier version of
+ * this function shaped the jaw and the back of the skull as though forward
+ * were +Z. While the head was a featureless ovoid nobody could see it; the
+ * moment it grew a nose, the character was wearing its face on the back of
+ * its head. Naming the axis is what stops that happening twice.
  */
 export function skull(r = 0.115) {
   const head = new THREE.SphereGeometry(r, 28, 22);
@@ -189,57 +197,60 @@ export function skull(r = 0.115) {
 
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
+    // f is "out of the face". Everything below is written in it, and it is
+    // folded back into z once, at the end.
+    let f = -v.z;
 
     // ---- cranium ----
-    if (v.z < 0) v.z *= 0.92;
+    if (f < 0) f *= 0.92;           // flatten the back of the skull
     if (v.y < 0) {
       const t = Math.min(1, -v.y / r);
-      v.z += t * r * 0.22;          // jaw forward
+      f += t * r * 0.22;            // jaw forward
       v.x *= 1 - t * 0.30;          // taper to the chin
       v.y -= t * r * 0.10;
     }
-    if (v.y > r * 0.4 && v.z > 0) v.z += r * 0.04;
+    if (v.y > r * 0.4 && f > 0) f += r * 0.04;
 
-    const front = Math.max(0, v.z) / r;
+    const front = Math.max(0, f) / r;
     const ax = Math.abs(v.x);
 
     // ---- brow ridge: a bar across the front, heaviest above the eyes ----
     const brow = bump(ax - r * 0.32, v.y - r * 0.22, 0, r * 0.20) * front;
-    v.z += brow * r * 0.070;
+    f += brow * r * 0.070;
 
     // ---- eye sockets: pushed in under the brow, which is what makes a
     // face read at distance — the shadow, not the eye ----
     const socket = bump(ax - r * 0.32, v.y - r * 0.03, 0, r * 0.16) * front;
-    v.z -= socket * r * 0.10;
+    f -= socket * r * 0.10;
 
     // ---- nose ----
     const bridge = bump(ax, v.y - r * 0.02, 0, r * 0.13) * front;
     const tip = bump(ax, v.y + r * 0.20, 0, r * 0.10) * front;
-    v.z += bridge * r * 0.055 + tip * r * 0.105;
+    f += bridge * r * 0.055 + tip * r * 0.105;
 
     // ---- cheekbones, then the hollow beneath them ----
     const cheek = bump(ax - r * 0.48, v.y + r * 0.10, 0, r * 0.16) * front;
-    v.z += cheek * r * 0.040;
+    f += cheek * r * 0.040;
     const hollow = bump(ax - r * 0.40, v.y + r * 0.36, 0, r * 0.15) * front;
-    v.z -= hollow * r * 0.045;
+    f -= hollow * r * 0.045;
 
     // ---- mouth line and the chin under it ----
     const mouth = bump(ax * 0.75, v.y + r * 0.50, 0, r * 0.12) * front;
-    v.z -= mouth * r * 0.038;
+    f -= mouth * r * 0.038;
     const chin = bump(ax, v.y + r * 0.80, 0, r * 0.18) * front;
-    v.z += chin * r * 0.055;
+    f += chin * r * 0.055;
 
     // ---- ears ----
-    // Localised in z as well as x, or the bump becomes a ridge around the
+    // Localised along f as well as x, or the bump becomes a ridge around the
     // whole equator and the head reads as an almond.
-    const ear = bump(ax - r * 0.86, v.y + r * 0.04, v.z + r * 0.06, r * 0.11);
+    const ear = bump(ax - r * 0.86, v.y + r * 0.04, f + r * 0.06, r * 0.11);
     v.x += ear * Math.sign(v.x || 1) * r * 0.085;
 
     // ---- occipital bulge and the nape ----
-    const nape = bump(ax, v.y + r * 0.55, v.z + r * 0.80, r * 0.22);
-    v.z -= nape * r * 0.040;
+    const nape = bump(ax, v.y + r * 0.55, f + r * 0.80, r * 0.22);
+    f -= nape * r * 0.040;
 
-    pos.setXYZ(i, v.x, v.y, v.z);
+    pos.setXYZ(i, v.x, v.y, -f);
   }
   head.computeVertexNormals();
   return head;
