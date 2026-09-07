@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { applyAtmosphere } from '../core/atmosphere';
+import { applyAtmosphere, type SurfaceDetail } from '../core/atmosphere';
 import { Textures } from '../world/textures';
 
 export const AETHER = new THREE.Color('#4ea8ff');
@@ -36,7 +36,12 @@ const RIM_FRAG = /* glsl */ `
 `;
 
 /** Patch any standard material into the world atmosphere, with optional rim. */
-export function worldMaterial(params: THREE.MeshStandardMaterialParameters, key: string, rim = 0.0) {
+export function worldMaterial(
+  params: THREE.MeshStandardMaterialParameters,
+  key: string,
+  rim = 0.0,
+  surface?: SurfaceDetail,
+) {
   const m = new THREE.MeshStandardMaterial(params);
   applyAtmosphere(m, {
     key: key + (rim > 0 ? '-rim' : ''),
@@ -45,9 +50,40 @@ export function worldMaterial(params: THREE.MeshStandardMaterialParameters, key:
     vertexBody: 'vWorldNormal_rim = normalize(mat3(modelMatrix) * objectNormal);',
     fragmentPars: 'uniform float uRimStrength;\nvarying vec3 vWorldNormal_rim;',
     fragmentBody: rim > 0 ? RIM_FRAG : '',
+    surface,
   });
   return m;
 }
+
+/**
+ * The micro-detail each substance wears. Scale is in world units, so a value
+ * of 1.4 means the grain repeats every ~70cm — chosen per material so plate
+ * looks hammered at arm's length and masonry looks quarried from across a
+ * courtyard.
+ */
+export const SURFACES = {
+  get stone(): SurfaceDetail {
+    return { map: Textures.surfStone, scale: 0.55, normal: 0.55, rough: 0.30, cavity: 0.26 };
+  },
+  get rock(): SurfaceDetail {
+    return { map: Textures.surfStone, scale: 0.30, normal: 0.70, rough: 0.26, cavity: 0.30 };
+  },
+  get wood(): SurfaceDetail {
+    return { map: Textures.surfWood, scale: 1.30, normal: 0.48, rough: 0.28, cavity: 0.24 };
+  },
+  get cloth(): SurfaceDetail {
+    return { map: Textures.surfCloth, scale: 3.20, normal: 0.30, rough: 0.22, cavity: 0.16 };
+  },
+  get metal(): SurfaceDetail {
+    return { map: Textures.surfMetal, scale: 2.60, normal: 0.34, rough: 0.34, cavity: 0.12 };
+  },
+  get leather(): SurfaceDetail {
+    return { map: Textures.surfStone, scale: 3.60, normal: 0.40, rough: 0.26, cavity: 0.20 };
+  },
+  get skin(): SurfaceDetail {
+    return { map: Textures.surfCloth, scale: 6.00, normal: 0.14, rough: 0.16, cavity: 0.10 };
+  },
+} as const;
 
 const std = worldMaterial;
 
@@ -82,12 +118,12 @@ export function makeCharacterMaterials(opts: {
     roughness: 0.82,
     metalness: 0.0,
     envMapIntensity: 0.55,
-  }, key + '-skin', 0.10);
+  }, key + '-skin', 0.10, SURFACES.skin);
   const suit = std({
     color: opts.suit ?? '#2a2f3a',
     roughness: 0.90,
     metalness: 0.04,
-  }, key + '-suit', 0.15);
+  }, key + '-suit', 0.15, SURFACES.cloth);
   // Blackened iron, not chrome. High metalness with a low roughness and a
   // strong environment made the plate mirror the sky, which on a blue-grey
   // base is what turned the pauldrons into glossy plastic. Dark fantasy plate
@@ -98,18 +134,18 @@ export function makeCharacterMaterials(opts: {
     roughness: opts.roughness ?? 0.58,
     metalness: opts.metalness ?? 0.72,
     envMapIntensity: 0.65,
-  }, key + '-armor', 0.30);
+  }, key + '-armor', 0.30, SURFACES.metal);
   const cloth = std({
     color: opts.cloth ?? '#1c2130',
     roughness: 0.95,
     metalness: 0.0,
     side: THREE.DoubleSide,
-  }, key + '-cloth', 0.18);
+  }, key + '-cloth', 0.18, SURFACES.cloth);
   const leather = std({
     color: opts.leather ?? '#3a2c22',
     roughness: 0.72,
     metalness: 0.05,
-  }, key + '-leather', 0.12);
+  }, key + '-leather', 0.12, SURFACES.leather);
   const energy = std({
     color: '#04070c',
     emissive: (opts.energy ?? AETHER).clone(),

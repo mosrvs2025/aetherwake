@@ -28,6 +28,102 @@ function tileableFbm(n: Noise, u: number, v: number, freq: number, octaves: numb
 }
 
 /**
+ * Surface micro-detail: the layer that decides whether a material reads as a
+ * substance or as tinted plastic.
+ *
+ * Every material in the game was a flat PBR colour — no normal map, no
+ * roughness map, no cavity anywhere. Lighting alone cannot tell you that stone
+ * is pitted and cloth is woven, so a lit sphere of "stone" and a lit sphere of
+ * "leather" differed only in hue. These maps carry the height gradient that
+ * breaks up a specular highlight, a roughness variation so the sheen is not
+ * uniform, and a cavity term for the dirt that collects in the low spots.
+ *
+ * Packed the same way as the detail texture so the shader gets everything in
+ * one tap:
+ *   R = height        G = dH/du       B = dH/dv       A = roughness variation
+ *
+ * `kind` shapes the noise rather than swapping the algorithm: stone is
+ * isotropic and pitted, wood runs in a grain, cloth is a fine cross-weave,
+ * metal is nearly smooth with sparse scratches.
+ */
+export type SurfaceKind = 'stone' | 'wood' | 'cloth' | 'metal';
+
+export function makeSurfaceTexture(size = 256, seed = 'surface', kind: SurfaceKind = 'stone'): THREE.DataTexture {
+  const n1 = new Noise(seed + '-h');
+  const n2 = new Noise(seed + '-r');
+  const h = new Float32Array(size * size);
+  const rough = new Float32Array(size * size);
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = x / size, v = y / size;
+      let height: number;
+      switch (kind) {
+        case 'wood': {
+          // Grain: high frequency across the fibres, very low along them, plus
+          // a slow wander so the lines are not ruled.
+          const wander = tileableFbm(n1, u, v, 3, 2) * 0.06;
+          const grain = tileableFbm(n1, u + wander, v * 0.10, 54, 4);
+          const pores = tileableFbm(n2, u, v, 96, 2) * 0.22;
+          height = grain * 0.62 + pores + 0.5;
+          break;
+        }
+        case 'cloth': {
+          // A woven cross-hatch: two perpendicular high-frequency ridges, so
+          // the highlight breaks into threads rather than a smooth sheet.
+          const warp = Math.abs(Math.sin(u * Math.PI * size * 0.16));
+          const weft = Math.abs(Math.sin(v * Math.PI * size * 0.16));
+          const slub = tileableFbm(n1, u, v, 22, 3) * 0.30;
+          height = (warp * 0.5 + weft * 0.5) * 0.5 + slub + 0.34;
+          break;
+        }
+        case 'metal': {
+          // Mostly flat. The interest is sparse anisotropic scratches and a
+          // faint hammer planish, which is what makes plate read as forged.
+          const planish = tileableFbm(n1, u, v, 15, 3) * 0.30;
+          const scratch = Math.pow(Math.abs(tileableFbm(n2, u * 0.22, v, 70, 2)), 3.0) * 1.6;
+          height = 0.5 + planish * 0.5 + scratch * 0.28;
+          break;
+        }
+        default: {
+          // Stone: broad pitting over fine grit.
+          const pit = tileableFbm(n1, u, v, 18, 4);
+          const grit = tileableFbm(n2, u, v, 74, 3);
+          height = 0.5 + pit * 0.40 + grit * 0.24;
+          break;
+        }
+      }
+      h[y * size + x] = clamp01(height);
+      rough[y * size + x] = clamp01(tileableFbm(n2, u, v, kind === 'metal' ? 9 : 26, 3) * 0.5 + 0.5);
+    }
+  }
+
+  // Gradients by central difference on the torus, so the map stays seamless.
+  const grad = kind === 'cloth' ? 5.0 : kind === 'metal' ? 3.2 : 7.0;
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      const xl = (x - 1 + size) % size, xr = (x + 1) % size;
+      const yl = (y - 1 + size) % size, yr = (y + 1) % size;
+      const dx = (h[y * size + xr] - h[y * size + xl]) * 0.5;
+      const dy = (h[yr * size + x] - h[yl * size + x]) * 0.5;
+      data[i * 4 + 0] = Math.round(h[i] * 255);
+      data[i * 4 + 1] = Math.round(clamp01(dx * grad + 0.5) * 255);
+      data[i * 4 + 2] = Math.round(clamp01(dy * grad + 0.5) * 255);
+      data[i * 4 + 3] = Math.round(rough[i] * 255);
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/**
  * Packed detail texture used by terrain, rock and bark shading.
  *   R = height field (for parallax-ish shading and speckle)
  *   G = ∂height/∂u  (pre-baked so the shader gets a normal from one tap)
@@ -257,6 +353,10 @@ let _smoke: THREE.DataTexture | null = null;
 let _leaf: THREE.DataTexture | null = null;
 let _grass: THREE.DataTexture | null = null;
 let _rune: THREE.DataTexture | null = null;
+let _surfStone: THREE.DataTexture | null = null;
+let _surfWood: THREE.DataTexture | null = null;
+let _surfCloth: THREE.DataTexture | null = null;
+let _surfMetal: THREE.DataTexture | null = null;
 
 export const Textures = {
   get detail() { return (_detail ??= makeDetailTexture(512, 'realms-detail')); },
@@ -265,8 +365,14 @@ export const Textures = {
   get leaf() { return (_leaf ??= makeLeafTexture(256, 'realms-leaf')); },
   get grass() { return (_grass ??= makeGrassTexture(128)); },
   get rune() { return (_rune ??= makeRuneTexture(256, 'realms-rune')); },
+  get surfStone() { return (_surfStone ??= makeSurfaceTexture(256, 'realms-stone', 'stone')); },
+  get surfWood() { return (_surfWood ??= makeSurfaceTexture(256, 'realms-wood', 'wood')); },
+  get surfCloth() { return (_surfCloth ??= makeSurfaceTexture(256, 'realms-cloth', 'cloth')); },
+  get surfMetal() { return (_surfMetal ??= makeSurfaceTexture(256, 'realms-metal', 'metal')); },
   dispose() {
-    [_detail, _glow, _smoke, _leaf, _grass, _rune].forEach((t) => t?.dispose());
+    [_detail, _glow, _smoke, _leaf, _grass, _rune,
+      _surfStone, _surfWood, _surfCloth, _surfMetal].forEach((t) => t?.dispose());
     _detail = _glow = _smoke = _leaf = _grass = _rune = null;
+    _surfStone = _surfWood = _surfCloth = _surfMetal = null;
   },
 };

@@ -13,7 +13,8 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { worldMaterial } from '../chars/materials';
+import { worldMaterial, SURFACES } from '../chars/materials';
+import type { SurfaceDetail } from '../core/atmosphere';
 import { Textures } from './textures';
 import { Random, lerp } from '../core/math';
 import { terrainHeight } from './heightfield';
@@ -31,25 +32,29 @@ export interface InteractPoint {
 }
 
 export function makeStructureMaterials() {
-  const mk = (key: string, params: THREE.MeshStandardMaterialParameters, rim = 0.14) =>
-    worldMaterial(params, key, rim);
+  const mk = (
+    key: string,
+    params: THREE.MeshStandardMaterialParameters,
+    rim = 0.14,
+    surface?: SurfaceDetail,
+  ) => worldMaterial(params, key, rim, surface);
   const detail = Textures.detail;
   // Masonry gets a rim too: a keep silhouetted against a bright sky is
   // otherwise a black hole in the frame.
   const mats: Record<MatKey, THREE.MeshStandardMaterial> = {
     // No colour map: box UVs stretch one tile across a whole wall, so a map
     // only darkens by its average. Bump alone gives the surface some tooth.
-    stone: mk('st-stone', { color: '#bcb6a6', roughness: 0.93, metalness: 0.0, bumpMap: detail, bumpScale: 0.35 }),
-    stoneDark: mk('st-dark', { color: '#8b8f9c', roughness: 0.84, metalness: 0.05, bumpMap: detail, bumpScale: 0.5 }, 0.24),
-    wood: mk('st-wood', { color: '#7c5c3e', roughness: 0.9, metalness: 0.0 }),
-    roof: mk('st-roof', { color: '#7a5347', roughness: 0.86, metalness: 0.02 }),
+    stone: mk('st-stone', { color: '#bcb6a6', roughness: 0.93, metalness: 0.0, bumpMap: detail, bumpScale: 0.35 }, 0.14, SURFACES.stone),
+    stoneDark: mk('st-dark', { color: '#8b8f9c', roughness: 0.84, metalness: 0.05, bumpMap: detail, bumpScale: 0.5 }, 0.24, SURFACES.stone),
+    wood: mk('st-wood', { color: '#7c5c3e', roughness: 0.9, metalness: 0.0 }, 0.14, SURFACES.wood),
+    roof: mk('st-roof', { color: '#7a5347', roughness: 0.86, metalness: 0.02 }, 0.14, SURFACES.stone),
     // the Keep is dark slate, not village terracotta
-    slate: mk('st-slate', { color: '#4d5560', roughness: 0.70, metalness: 0.10 }, 0.20),
-    metal: mk('st-metal', { color: '#5b626f', roughness: 0.40, metalness: 0.72 }, 0.24),
+    slate: mk('st-slate', { color: '#4d5560', roughness: 0.70, metalness: 0.10 }, 0.20, SURFACES.stone),
+    metal: mk('st-metal', { color: '#5b626f', roughness: 0.40, metalness: 0.72 }, 0.24, SURFACES.metal),
     rune: mk('st-rune', { color: '#05070b', emissive: AETHER.clone(), emissiveIntensity: 2.6, roughness: 0.4, metalness: 0.2 }, 0),
-    cloth: mk('st-cloth', { color: '#8e363d', roughness: 0.95, metalness: 0, side: THREE.DoubleSide }, 0.18),
-    thatch: mk('st-thatch', { color: '#b3924f', roughness: 0.98, metalness: 0 }),
-    gold: mk('st-gold', { color: '#d4ad57', roughness: 0.32, metalness: 0.9 }, 0.22),
+    cloth: mk('st-cloth', { color: '#8e363d', roughness: 0.95, metalness: 0, side: THREE.DoubleSide }, 0.18, SURFACES.cloth),
+    thatch: mk('st-thatch', { color: '#b3924f', roughness: 0.98, metalness: 0 }, 0.14, SURFACES.wood),
+    gold: mk('st-gold', { color: '#d4ad57', roughness: 0.32, metalness: 0.9 }, 0.22, SURFACES.metal),
   };
   return mats;
 }

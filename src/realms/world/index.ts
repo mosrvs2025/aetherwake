@@ -23,6 +23,7 @@ import {
 } from './vegetation';
 import { Birds, SunMotes, Critters, type FlockSpec } from './wildlife';
 import { Textures } from './textures';
+import { SURFACES } from '../chars/materials';
 import { applyAtmosphere, atmo } from '../core/atmosphere';
 import {
   SEA_OF_CLOUD_Y, LAKE_Y, BRIDGE_X, BRIDGE_SOUTH_Z, BRIDGE_NORTH_Z, BRIDGE_Y,
@@ -266,7 +267,10 @@ export class World {
             // boulders gather at the foot of slopes and thin out with altitude
             return clamp01((0.09 + sl * 1.4) * (1 - smoothstep(170, 246, h)));
           });
-          const rockMat = makeFoliageMaterial({ color: '#7a7770', roughness: 0.95, key: 'rock', windAmp: 0 });
+          const rockMat = makeFoliageMaterial({
+            color: '#7a7770', roughness: 0.95, key: 'rock', windAmp: 0,
+            surface: SURFACES.rock,
+          });
           const rng = new Random('rocktint');
           const grp = new THREE.Group();
           grp.name = 'rocks';
