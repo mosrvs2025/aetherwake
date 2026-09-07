@@ -164,6 +164,75 @@ gl_FragColor.rgb = realmsCloudLight(gl_FragColor.rgb, vWorldPos_atmo);
 gl_FragColor.rgb = realmsApplyFog(gl_FragColor.rgb, cameraPosition, vWorldPos_atmo);
 `;
 
+/**
+ * Surface micro-detail, applied triplanar in world space.
+ *
+ * Per-material UV maps are not an option here: nearly every mesh in the game
+ * is a merge of swept tubes, extruded plates and rounded boxes whose UVs run
+ * at wildly different scales, so a tiling map would be gravel on one face and
+ * boulders on the next. Projecting from world space along the three axes and
+ * blending by the normal sidesteps UVs entirely, costs three taps, and has the
+ * pleasant side effect that neighbouring props share a consistent grain.
+ *
+ * The map packs height in R, its two gradients in GB and a roughness
+ * variation in A, so one tap yields a normal perturbation, a broken-up
+ * highlight and a cavity term together.
+ */
+export const SURFACE_PARS = /* glsl */ `
+uniform sampler2D uSurfTex;
+uniform vec4 uSurfParams;   // x = world scale, y = normal, z = roughness, w = cavity
+
+void realmsSurface(vec3 wp, inout vec3 nrm, inout float rough, inout vec3 albedo) {
+  if (uSurfParams.y <= 0.0 && uSurfParams.z <= 0.0 && uSurfParams.w <= 0.0) return;
+
+  // The shading normal, taken back into world space. viewMatrix is orthonormal,
+  // so multiplying on the right transposes it, which is its inverse.
+  vec3 wn = normalize((vec4(nrm, 0.0) * viewMatrix).xyz);
+
+  vec3 blend = pow(abs(wn), vec3(4.0));
+  blend /= max(blend.x + blend.y + blend.z, 1e-4);
+
+  float s = uSurfParams.x;
+  vec4 tx = texture2D(uSurfTex, wp.zy * s);
+  vec4 ty = texture2D(uSurfTex, wp.xz * s);
+  vec4 tz = texture2D(uSurfTex, wp.xy * s);
+
+  vec2 dx = (tx.gb - 0.5) * 2.0;
+  vec2 dy = (ty.gb - 0.5) * 2.0;
+  vec2 dz = (tz.gb - 0.5) * 2.0;
+
+  // Each projection contributes a gradient in the plane it was sampled from.
+  vec3 pert = vec3(0.0);
+  pert += blend.x * vec3(0.0, dx.y, dx.x);
+  pert += blend.y * vec3(dy.x, 0.0, dy.y);
+  pert += blend.z * vec3(dz.x, dz.y, 0.0);
+
+  wn = normalize(wn + pert * uSurfParams.y);
+  nrm = normalize((viewMatrix * vec4(wn, 0.0)).xyz);
+
+  float h = tx.r * blend.x + ty.r * blend.y + tz.r * blend.z;
+  float rn = tx.a * blend.x + ty.a * blend.y + tz.a * blend.z;
+
+  rough = clamp(rough + (rn - 0.5) * uSurfParams.z, 0.035, 1.0);
+  // dirt and shadow collect in the low spots, which is what stops a normal
+  // map from reading as embossed foil
+  albedo *= 1.0 - (1.0 - h) * uSurfParams.w;
+}
+`;
+
+/** How a material wears its micro-detail. */
+export interface SurfaceDetail {
+  map: THREE.Texture;
+  /** Tiling in world units — larger means finer grain. */
+  scale: number;
+  /** Normal perturbation strength. */
+  normal: number;
+  /** How far roughness swings either side of the material's own value. */
+  rough: number;
+  /** Cavity darkening in the low spots. */
+  cavity: number;
+}
+
 const patched = new WeakSet<THREE.Material>();
 
 /**
@@ -185,6 +254,8 @@ export function applyAtmosphere(
     fragmentReplace?: Array<[string, string]>;
     /** Stable cache key so variants do not share compiled programs. */
     key?: string;
+    /** World-space micro-detail: normal, roughness and cavity in one tap. */
+    surface?: SurfaceDetail;
   },
 ) {
   if (patched.has(material)) return material;
@@ -199,14 +270,32 @@ export function applyAtmosphere(
       .replace('#include <common>', `#include <common>\nvarying vec3 vWorldPos_atmo;\n${extra?.vertexPars ?? ''}`)
       .replace('#include <worldpos_vertex>', `${VERT_HOOK}\n${extra?.vertexBody ?? ''}`);
 
+    const surf = extra?.surface;
+    if (surf) {
+      shader.uniforms.uSurfTex = { value: surf.map };
+      shader.uniforms.uSurfParams = {
+        value: new THREE.Vector4(surf.scale, surf.normal, surf.rough, surf.cavity),
+      };
+    }
+
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${ATMO_PARS}\n${extra?.fragmentPars ?? ''}`)
+      .replace('#include <common>', `#include <common>\n${ATMO_PARS}\n${surf ? SURFACE_PARS : ''}\n${extra?.fragmentPars ?? ''}`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>\n${extra?.fragmentBody ?? ''}\n${FRAG_HOOK}`);
+
+    // After normal_fragment_maps the shading normal exists and roughnessFactor
+    // has not been consumed yet, so one injection can reach all three.
+    if (surf) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_maps>',
+        '#include <normal_fragment_maps>\n'
+        + 'realmsSurface(vWorldPos_atmo, normal, roughnessFactor, diffuseColor.rgb);',
+      );
+    }
 
     for (const [find, rep] of extra?.vertexReplace ?? []) shader.vertexShader = shader.vertexShader.replace(find, rep);
     for (const [find, rep] of extra?.fragmentReplace ?? []) shader.fragmentShader = shader.fragmentShader.replace(find, rep);
   };
-  const key = extra?.key ?? 'default';
+  const key = (extra?.key ?? 'default') + (extra?.surface ? '-surf' : '');
   material.customProgramCacheKey = () => 'realms-atmo-' + key;
   material.needsUpdate = true;
   return material;

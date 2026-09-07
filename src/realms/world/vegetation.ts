@@ -18,8 +18,9 @@
  */
 
 import * as THREE from 'three';
-import { applyAtmosphere, atmo } from '../core/atmosphere';
+import { applyAtmosphere, atmo, type SurfaceDetail } from '../core/atmosphere';
 import { Textures } from './textures';
+import { SURFACES } from '../chars/materials';
 import { Noise, Random, clamp01, lerp, smoothstep } from '../core/math';
 
 /** Shared with the terrain shader's region band so tints agree on the ground. */
@@ -137,6 +138,8 @@ export function makeFoliageMaterial(opts: {
   normalUp?: number;
   /** Strength of the back-lit transmission through thin foliage. */
   translucency?: number;
+  /** World-space micro-detail — bark and rock want it, leaves do not. */
+  surface?: SurfaceDetail;
 }) {
   const normalUp = opts.normalUp ?? 0;
   const translucency = opts.translucency ?? 0;
@@ -161,6 +164,7 @@ export function makeFoliageMaterial(opts: {
       uNormalUp: { value: normalUp },
       uTranslucency: { value: translucency },
     },
+    surface: opts.surface,
     vertexPars: WIND_PARS,
     fragmentPars: 'varying vec3 vTint;\nuniform float uNormalUp;\nuniform float uTranslucency;',
     vertexReplace: [['#include <begin_vertex>', `#include <begin_vertex>\n${WIND_VERT}`]],
@@ -606,7 +610,7 @@ export function buildVegetation(deps: VegetationDeps) {
   const rng = new Random('realms-forest');
   const bark = makeFoliageMaterial({
     color: '#7c6549', roughness: 0.92, key: 'bark', windAmp: 0.014, tinted: false,
-    clumpFade: [0, 540],
+    clumpFade: [0, 540], surface: SURFACES.wood,
   });
   const leaf = makeFoliageMaterial({
     color: '#ffffff', map: Textures.leaf, alphaTest: 0.36, side: THREE.DoubleSide,
